@@ -71,6 +71,7 @@ protected:
     // "Classical" interfaces - TORSO
     IEncoders         *iencsT;
     IPositionControl  *iposT;
+    IVelocityControl  *ivelT;
     IControlLimits    *ilimT;
     Vector            *encsT;
     int jntsT;
@@ -78,6 +79,7 @@ protected:
     // "Classical" interfaces - HEAD
     IEncoders         *iencsH;
     IPositionControl  *iposH;
+    IVelocityControl  *ivelH;
     IControlLimits    *ilimH;
     Vector            *encsH;
     int jntsH;

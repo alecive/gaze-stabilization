@@ -33,6 +33,7 @@ bool gazeStabilizerThread::threadInit()
     {
         ok = ok && ddT.view(iencsT);
         ok = ok && ddT.view(iposT);
+        ok = ok && ddT.view(ivelT);
         ok = ok && ddT.view(ilimT);
     }
 
@@ -63,6 +64,7 @@ bool gazeStabilizerThread::threadInit()
     {
         ok = ok && ddH.view(iencsH);
         ok = ok && ddH.view(iposH);
+        ok = ok && ddH.view(ivelH);
         ok = ok && ddH.view(ilimH);
     }
 
