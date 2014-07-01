@@ -141,7 +141,7 @@ class torsoController: public RFModule
                     name = rf.find("name").asString();
                     printf("*** Module name set to %s\n",name.c_str());  
                 }
-                else printf("*** Module name set to default, i.e. %s",name.c_str());
+                else printf("*** Module name set to default, i.e. %s\n",name.c_str());
                 setName(name.c_str());
 
             //****************** rate ******************

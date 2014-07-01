@@ -22,25 +22,25 @@
 #include <yarp/os/all.h>
 
 #include <yarp/sig/Vector.h>
-#include <yarp/sig/Matrix.h>
-
-#include <yarp/math/Math.h>
 
 #include <yarp/dev/PolyDriver.h>
 #include <yarp/dev/Drivers.h>
 #include <yarp/dev/all.h>
 
-#include <yarp/os/Semaphore.h>
+#include <yarp/os/BufferedPort.h>
+
+#include <yarp/math/SVD.h>
 
 #include <iCub/iKin/iKinFwd.h>
 #include <iCub/iKin/iKinHlp.h>
+#include <iCub/iKin/iKinInv.h>
+#include <iCub/ctrl/math.h>
 
 #include <cv.h>
 #include <highgui.h>
 
 #include <iostream>
 #include <string>
-#include <stdio.h>
 #include <stdarg.h>
 #include <deque>
 
@@ -49,7 +49,9 @@ using namespace yarp::os;
 using namespace yarp::sig;
 using namespace yarp::math;
 using namespace yarp::dev;
+using namespace yarp::math;
 using namespace iCub::iKin;
+using namespace iCub::ctrl;
 
 using namespace std;
 
@@ -58,33 +60,52 @@ class gazeStabilizerThread: public RateThread
 protected:
     /***************************************************************************/
     // EXTERNAL VARIABLES: change them from command line or through .ini file
-    int verbosity;  // Flag that manages verbosity
-    string name;    // Name of the module (to change port names accordingly)  
-    string robot;   // Name of the robot (to address both icub and icubSim):
-
-    // Driver for classical interfaces
-    PolyDriver       ddH; // right arm device driver
-    PolyDriver       ddT; // left arm  device driver
-
-    // Classical interfaces - TORSO
-    IEncoders          *iencsT;
-    IPositionControl   *iposT;
-    IVelocityControl2  *ivelT;
-    IControlLimits     *ilimT;
-    Vector             *encsT;
-    int jntsT;
+    int verbosity;      // Flag that manages verbosity
+    string name;        // Name of the module (to change port names accordingly)  
+    string robot;       // Name of the robot (to address both icub and icubSim):
 
     // Classical interfaces - HEAD
+    PolyDriver         *ddH;    // head device driver
     IEncoders          *iencsH;
     IPositionControl   *iposH;
     IVelocityControl2  *ivelH;
-    IControlLimits     *ilimH;
     Vector             *encsH;
     int jntsH;
 
-    // 
-    iCubEye *eyeR;
-    iCubEye *eyeL;
+    // Classical interfaces - TORSO
+    PolyDriver         *ddT;     // torso device driver
+    IEncoders          *iencsT;
+    Vector             *encsT;
+    int jntsT;
+
+    // Eyes' kinematics
+    iCubEye        *eyeR;
+    iCubEye        *eyeL;
+    iCubHeadCenter *neck;
+    iKinChain      *chainNeck;
+    iKinChain      *chainEyeL;
+    iKinChain      *chainEyeR;
+
+    // Cartesian Helper
+    CartesianHelper cartHlp;
+
+    // Input from the torsoController
+    BufferedPort<Bottle>  *inTorsoPort;   // port for reading from the torsoController
+    Bottle                *inTorsoBottle; // bottle used for the port
+
+    void updateEyeChain(iKinChain &_eye, const string _eyeType);
+
+    /**
+    * Aligns head joints bounds with current onboard bounds.
+    * Returns a matrix containing the actual limits
+    */
+    Matrix alignJointsBounds(iKinChain *chain, PolyDriver *drvTorso, PolyDriver *drvHead,
+                             const double eyeTiltMin, const double eyeTiltMax);
+
+    /**
+    * Copies joints bounds from first chain to second chain
+    */
+    void copyJointsBounds(iKinChain *ch1, iKinChain *ch2);
 
     /**
     * Prints a message according to the verbosity level:

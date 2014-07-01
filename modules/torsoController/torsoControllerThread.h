@@ -19,12 +19,10 @@
  * the affected taxel.
 */
 
-#include <yarp/os/all.h>
+#include <yarp/os/Time.h>
+#include <yarp/os/RateThread.h>
 
 #include <yarp/sig/Vector.h>
-#include <yarp/sig/Matrix.h>
-
-#include <yarp/math/Math.h>
 
 #include <yarp/dev/PolyDriver.h>
 #include <yarp/dev/Drivers.h>
@@ -32,13 +30,13 @@
 
 #include <iostream>
 #include <string>
+#include <stdarg.h>
+#include <vector>
 
 using namespace yarp;
 using namespace yarp::os;
 using namespace yarp::sig;
-using namespace yarp::math;
 using namespace yarp::dev;
-using namespace iCub::iKin;
 
 using namespace std;
 
@@ -47,33 +45,23 @@ class torsoControllerThread: public RateThread
 protected:
     /***************************************************************************/
     // EXTERNAL VARIABLES: change them from command line or through .ini file
-    int verbosity;  // Flag that manages verbosity
-    string name;    // Name of the module (to change port names accordingly)  
-    string robot;   // Name of the robot (to address both icub and icubSim):
-
-    // Driver for classical interfaces
-    PolyDriver       ddH; // right arm device driver
-    PolyDriver       ddT; // left arm  device driver
+    int verbosity;      // Flag that manages verbosity
+    string name;        // Name of the module (to change port names accordingly)  
+    string robot;       // Name of the robot (to address both icub and icubSim):
 
     // Classical interfaces - TORSO
-    IEncoders          *iencsT;
+    PolyDriver       ddT;   // torso device driver
+    
     IPositionControl   *iposT;
     IVelocityControl2  *ivelT;
-    IControlLimits     *ilimT;
-    Vector             *encsT;
-    int jntsT;
 
-    // Classical interfaces - HEAD
-    IEncoders          *iencsH;
-    IPositionControl   *iposH;
-    IVelocityControl2  *ivelH;
-    IControlLimits     *ilimH;
-    Vector             *encsH;
-    int jntsH;
+    double timeNow;
+    int     cmdcnt;
+    std::vector <yarp::sig::Vector> ctrlCommands;
 
-    // 
-    iCubEye *eyeR;
-    iCubEye *eyeL;
+    Port outPort;
+
+    void sendCommand();
 
     /**
     * Prints a message according to the verbosity level:

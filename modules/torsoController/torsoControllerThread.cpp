@@ -5,16 +5,45 @@
 #include <unistd.h>
 #include <iomanip>
 
+#define CTRL_PERIOD 2
+
 torsoControllerThread::torsoControllerThread(int _rate, string _name, string _robot, int _v) :
                                            RateThread(_rate), name(_name),
                                            robot(_robot), verbosity(_v)
 {
-    eyeR = new iCubEye("right_v2");
-    eyeL = new iCubEye("left_v2");
+    timeNow = yarp::os::Time::now();
+    cmdcnt  = -2;
+
+    Vector vec(3,0.0);
+    
+    vec[0] =  10;
+    ctrlCommands.push_back(vec);
+
+    vec[0] = -10;
+    ctrlCommands.push_back(vec);
+    ctrlCommands.push_back(vec);
+
+    vec[0] =  10;
+    ctrlCommands.push_back(vec);
+
+    vec[0] =   0;
+    vec[2] =  10;
+    ctrlCommands.push_back(vec);
+    ctrlCommands.push_back(vec);
+
+    vec[2] = -10;
+    ctrlCommands.push_back(vec);
+    ctrlCommands.push_back(vec);    
+
+    vec.zero();
+    ctrlCommands.push_back(vec);    
 }
 
 bool torsoControllerThread::threadInit()
 {
+    outPort.open(("/"+name+"/gazeStabilizer:o").c_str());
+    Network::connect(("/"+name+"/gazeStabilizer:o").c_str(),"/gazeStabilizer/torsoController:i");
+
     bool ok = 1;
     Property OptT;
     OptT.put("robot",  robot.c_str());
@@ -29,61 +58,71 @@ bool torsoControllerThread::threadInit()
         return false;
     }
 
-    // open the view
     if (ddT.isValid())
     {
-        ok = ok && ddT.view(iencsT);
         ok = ok && ddT.view(iposT);
         ok = ok && ddT.view(ivelT);
-        ok = ok && ddT.view(ilimT);
     }
 
     if (!ok)
     {
-        printMessage(0,"\nERROR: Problems acquiring head interfaces!!!!\n");
+        printMessage(0,"\nERROR: Problems acquiring torso interfaces!!!!\n");
         return false;
     }
-
-    iencsT->getAxes(&jntsT);
-    encsT = new Vector(jntsT,0.0);
-
-    Property OptH;
-    OptH.put("robot",  robot.c_str());
-    OptH.put("part",   "head");
-    OptH.put("device", "remote_controlboard");
-    OptH.put("remote",("/"+robot+"/head").c_str());
-    OptH.put("local", ("/"+name +"/head").c_str());
-
-    if (!ddH.open(OptH))
-    {
-        printMessage(0,"ERROR: could not open head PolyDriver!\n");
-        return false;
-    }
-
-    // open the view
-    if (ddH.isValid())
-    {
-        ok = ok && ddH.view(iencsH);
-        ok = ok && ddH.view(iposH);
-        ok = ok && ddH.view(ivelH);
-        ok = ok && ddH.view(ilimH);
-    }
-
-    if (!ok)
-    {
-        printMessage(0,"\nERROR: Problems acquiring head interfaces!!!!\n");
-        return false;
-    }
-
-    iencsH->getAxes(&jntsH);
-    encsH = new Vector(jntsH,0.0);
 
     return true;
 }
 
 void torsoControllerThread::run()
 {
+    if (cmdcnt == -2)   // put torso in 0 0 0 (positionMove)
+    {
+        printMessage(0,"Putting torso in home position..\n");
+        Vector pos0(3,0.0);
+        iposT -> positionMove(pos0.data());
+        timeNow = yarp::os::Time::now();
+        cmdcnt +=1;
+    }
+    else if (cmdcnt == -1)
+    {
+        if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
+        {
+            timeNow = yarp::os::Time::now();
+            cmdcnt += 1;
+            printMessage(0,"Sending command #%i\n",cmdcnt);
+        }
+    }
+    else if (cmdcnt < ctrlCommands.size())
+    {
+        ivelT -> velocityMove(ctrlCommands[cmdcnt].data());
+        sendCommand();
 
+        if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
+        {
+            timeNow = yarp::os::Time::now();
+            cmdcnt += 1;
+            printMessage(0,"Sending command #%i\n",cmdcnt);
+        }
+    }
+    else
+    {
+        if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
+        {
+            timeNow = yarp::os::Time::now();
+            printMessage(0,"Finished.\n");
+        }
+    }
+}
+
+void torsoControllerThread::sendCommand()
+{
+    Bottle b;
+    b.clear();
+    for (size_t i = 0; i < 3; i++)
+    {
+        b.addDouble(ctrlCommands[cmdcnt](i));
+    }
+    outPort.write(b);
 }
 
 int torsoControllerThread::printMessage(const int l, const char *f, ...) const
@@ -117,35 +156,8 @@ void torsoControllerThread::closePort(Contactable *_port)
 
 void torsoControllerThread::threadRelease()
 {
-
     printMessage(0,"Closing controllers..\n");
         ddT.close();
-        ddH.close();
-
-    if (encsH)
-    {
-        delete encsH;
-        encsH = NULL;
-    }
-
-    if (encsT)
-    {
-        delete encsT;
-        encsT = NULL;
-    }
-
-    if (eyeR)
-    {
-        delete eyeR;
-        eyeR = NULL;
-    }
-
-    if (eyeL)
-    {
-        delete eyeL;
-        eyeL = NULL;
-    }
-
 }
 
 // empty line to make gcc happy

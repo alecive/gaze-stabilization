@@ -133,7 +133,7 @@ class gazeStabilizer: public RFModule
             string name      = "gazeStabilizer";
             string robot     = "icub";
             int    verbosity =      0;    // verbosity
-            int    rate      =     10;    // rate of the gazeStabilizerThread
+            int    rate      =    100;    // rate of the gazeStabilizerThread
 
             //******************* NAME ******************
                 if (rf.check("name"))
