@@ -9,7 +9,8 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string _name, string _robo
                                            RateThread(_rate), name(_name),
                                            robot(_robot), verbosity(_v)
 {
-
+    eyeR = new iCubEye("right_v2");
+    eyeL = new iCubEye("left_v2");
 }
 
 bool gazeStabilizerThread::threadInit()
@@ -116,6 +117,34 @@ void gazeStabilizerThread::closePort(Contactable *_port)
 
 void gazeStabilizerThread::threadRelease()
 {
+
+    printMessage(0,"Closing controllers..\n");
+        ddT.close();
+        ddH.close();
+
+    if (encsH)
+    {
+        delete encsH;
+        encsH = NULL;
+    }
+
+    if (encsT)
+    {
+        delete encsT;
+        encsT = NULL;
+    }
+
+    if (eyeR)
+    {
+        delete eyeR;
+        eyeR = NULL;
+    }
+
+    if (eyeL)
+    {
+        delete eyeL;
+        eyeL = NULL;
+    }
 
 }
 
