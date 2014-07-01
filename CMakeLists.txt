@@ -32,7 +32,7 @@ source_group("Header Files" FILES ${header})
 
 add_executable(gazeStabilizer ${source} ${header} )
 
-target_link_libraries(gazeStabilizer ${YARP_LIBRARIES} ${OpenCV_LIBRARIES})
+target_link_libraries(gazeStabilizer ${YARP_LIBRARIES} ${ICUB_LIBRARIES} ${OpenCV_LIBRARIES})
 
 install(TARGETS gazeStabilizer DESTINATION bin)
 icubcontrib_add_uninstall_target()
