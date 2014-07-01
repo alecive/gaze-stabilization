@@ -1,0 +1,59 @@
+<application>
+    <name>chessEyeTest</name>
+
+    <dependencies>
+        <port>/icub/camcalib/left/out</port>
+        <port>/icub/camcalib/right/out</port>
+    </dependencies>
+
+    <module>
+        <name>yarpview</name>
+        <parameters>--name /chessEyeTestInL --x 0 --y   0</parameters>
+        <node>localhost</node>
+        <stdio></stdio>
+        <tag>yarpview</tag>
+    </module>
+    <module>
+        <name>yarpview</name>
+        <parameters>--name /chessEyeTestInR --x 0 --y 360 </parameters>
+        <node>localhost</node>
+        <stdio></stdio>
+        <tag>yarpview</tag>
+    </module>
+    <module>
+        <name>yarpview</name>
+        <parameters>/chessEyeTestDisp</parameters>
+        <node>localhost</node>
+        <stdio></stdio>
+        <tag>yarpview</tag>
+    </module>
+    <module>
+        <name>chessEyeTest</name>
+        <parameters>--from chessEyeTest.ini</parameters>
+        <node>localhost</node>
+        <stdio></stdio>
+        <tag>chessEyeTest</tag>
+    </module>
+    
+    <connection>
+        <from>/icub/camcalib/left/out</from>
+        <to>/chessEyeTest/imgL:i</to>
+        <protocol>udp</protocol>
+    </connection>
+    <connection>
+        <from>/icub/camcalib/right/out</from>
+        <to>/chessEyeTest/imgR:i</to>
+        <protocol>udp</protocol>
+    </connection>
+    <connection>
+        <from>/chessEyeTest/imgR:o</from>
+        <to>/chessEyeTestInR</to>
+        <protocol>udp</protocol>
+    </connection>
+    <connection>
+        <from>/chessEyeTest/imgL:o</from>
+        <to>/chessEyeTestInL</to>
+        <protocol>udp</protocol>
+    </connection>
+
+</application>
