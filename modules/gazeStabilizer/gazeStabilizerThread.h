@@ -69,12 +69,14 @@ protected:
     IEncoders          *iencsH;
     IPositionControl   *iposH;
     IVelocityControl2  *ivelH;
+    IControlLimits     *ilimH;
     Vector             *encsH;
     int jntsH;
 
     // Classical interfaces - TORSO
     PolyDriver         *ddT;     // torso device driver
     IEncoders          *iencsT;
+    IControlLimits     *ilimT;
     Vector             *encsT;
     int jntsT;
 
@@ -94,18 +96,6 @@ protected:
     Bottle                *inTorsoBottle; // bottle used for the port
 
     void updateEyeChain(iKinChain &_eye, const string _eyeType);
-
-    /**
-    * Aligns head joints bounds with current onboard bounds.
-    * Returns a matrix containing the actual limits
-    */
-    Matrix alignJointsBounds(iKinChain *chain, PolyDriver *drvTorso, PolyDriver *drvHead,
-                             const double eyeTiltMin, const double eyeTiltMax);
-
-    /**
-    * Copies joints bounds from first chain to second chain
-    */
-    void copyJointsBounds(iKinChain *ch1, iKinChain *ch2);
 
     /**
     * Prints a message according to the verbosity level:

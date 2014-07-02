@@ -55,6 +55,7 @@ bool gazeStabilizerThread::threadInit()
         ok = ok && ddH->view(iencsH);
         ok = ok && ddH->view(iposH);
         ok = ok && ddH->view(ivelH);
+        ok = ok && ddH->view(ilimH);
     }
 
     if (!ok)
@@ -83,6 +84,7 @@ bool gazeStabilizerThread::threadInit()
     if (ddT->isValid())
     {
         ok = ok && ddT->view(iencsT);
+        ok = ok && ddT->view(ilimT);
     }
 
     if (!ok)
@@ -95,11 +97,13 @@ bool gazeStabilizerThread::threadInit()
     encsT = new Vector(jntsT,0.0);
 
     // joints bounds alignment
-    double eyeTiltMin = -12.0;
-    double eyeTiltMax =  15.0;
-    alignJointsBounds(chainNeck,ddT,ddH,eyeTiltMin,eyeTiltMax);
-    copyJointsBounds(chainNeck,chainEyeL);
-    copyJointsBounds(chainEyeL,chainEyeR);
+    deque<IControlLimits*> lim;
+    lim.push_back(ilimT);
+    lim.push_back(ilimH);
+
+    neck -> alignJointsBounds(lim);
+    eyeL -> alignJointsBounds(lim);
+    eyeR -> alignJointsBounds(lim);
 
     return true;
 }
@@ -175,9 +179,9 @@ void gazeStabilizerThread::run()
     printMessage(0,"dq_E:\t%s\n", dq_E.toString().c_str());
 
     // 9 - Send dq_E
-    int    nJnts     = 3;
+    int nJnts = 3;
 
-    std::vector<int> Ejoints;
+    std::vector<int> Ejoints;  // indexes of the joints to control
     Ejoints.push_back(0);
     Ejoints.push_back(1);
     Ejoints.push_back(2);
@@ -210,74 +214,6 @@ void gazeStabilizerThread::updateEyeChain(iKinChain &_eye, const string _eyeType
     q = CTRL_DEG2RAD*q;
 
     _eye.setAng(q);
-}
-
-Matrix gazeStabilizerThread::alignJointsBounds(iKinChain *chain, PolyDriver *drvTorso, PolyDriver *drvHead,
-                                               const double eyeTiltMin, const double eyeTiltMax)
-{
-    IEncoders      *encs;
-    IControlLimits *lims;
-
-    double min, max;
-    int nJointsTorso=3;    
-
-    if (drvTorso!=NULL)
-    {
-        drvTorso->view(encs);
-        drvTorso->view(lims);        
-        encs->getAxes(&nJointsTorso);
-
-        for (int i=0; i<nJointsTorso; i++)
-        {   
-            lims->getLimits(i,&min,&max);
-        
-            (*chain)[nJointsTorso-1-i].setMin(CTRL_DEG2RAD*min); // reversed order
-            (*chain)[nJointsTorso-1-i].setMax(CTRL_DEG2RAD*max);
-        }
-    }
-
-    drvHead->view(encs);
-    drvHead->view(lims);
-    int nJointsHead;
-    encs->getAxes(&nJointsHead);
-    Matrix lim(nJointsHead,2);
-
-    for (int i=0; i<nJointsHead; i++)
-    {   
-        lims->getLimits(i,&min,&max);
-
-        // limit eye's tilt due to eyelids
-        if (i==3)
-        {
-            min=std::max(min,eyeTiltMin);
-            max=std::min(max,eyeTiltMax);
-        }
-
-        lim(i,0)=CTRL_DEG2RAD*min;
-        lim(i,1)=CTRL_DEG2RAD*max;
-
-        // just one eye's got only 5 dofs
-        if (i<nJointsHead-1)
-        {
-            (*chain)[nJointsTorso+i].setMin(lim(i,0));
-            (*chain)[nJointsTorso+i].setMax(lim(i,1));
-        }
-    }
-
-    return lim;
-}
-
-void gazeStabilizerThread::copyJointsBounds(iKinChain *ch1, iKinChain *ch2)
-{
-    unsigned int N1=ch1->getN();
-    unsigned int N2=ch2->getN();
-    unsigned int N =N1>N2 ? N2 : N1;
-
-    for (unsigned int i=0; i<N; i++)
-    {
-        (*ch2)[i].setMin((*ch1)[i].getMin());
-        (*ch2)[i].setMax((*ch1)[i].getMax());
-    }
 }
 
 int gazeStabilizerThread::printMessage(const int l, const char *f, ...) const
