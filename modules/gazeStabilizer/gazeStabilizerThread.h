@@ -61,13 +61,16 @@ protected:
     // EXTERNAL VARIABLES: change them from command line or through .ini file
     int verbosity;      // Flag that manages verbosity
     string name;        // Name of the module (to change port names accordingly)  
-    string robot;       // Name of the robot (to address both icub and icubSim):
+    string robot;       // Name of the robot (to address both icub and icubSim)
+    string if_mode;     // Interface mode to use (either vel1 or vel2)
+    string src_mode;    // Source to use (either torso velocities through a port or the intetial sensor)
 
     // Classical interfaces - HEAD
     PolyDriver         *ddH;    // head device driver
     IEncoders          *iencsH;
     IPositionControl   *iposH;
-    IVelocityControl2  *ivelH;
+    IVelocityControl   *ivelH1;
+    IVelocityControl2  *ivelH2;
     IControlLimits     *ilimH;
     Vector             *encsH;
     int jntsH;
@@ -79,22 +82,43 @@ protected:
     Vector             *encsT;
     int jntsT;
 
-    // Eyes' kinematics
-    iCubEye        *eyeR;
-    iCubEye        *eyeL;
-    iCubHeadCenter *neck;
-    iKinChain      *chainNeck;
-    iKinChain      *chainEyeL;
-    iKinChain      *chainEyeR;
+    // Eyes' and inertial's kinematics
+    iCubEye             *eyeR;
+    iCubEye             *eyeL;
+    iCubHeadCenter      *neck;
+    iCubInertialSensor  *IMU;
+    iKinChain           *chainNeck;
+    iKinChain           *chainEyeL;
+    iKinChain           *chainEyeR;
+    iKinChain           *chainIMU;
 
-    // Cartesian Helper
-    CartesianHelper cartHlp;
+    // Internal matrixes and variables
+    Vector xFP_R;
+    Matrix J_E;
 
     // Input from the torsoController
     BufferedPort<Bottle>  *inTorsoPort;   // port for reading from the torsoController
     Bottle                *inTorsoBottle; // bottle used for the port
 
+    BufferedPort<Bottle>  *inIMUPort;    // port for reading from the inertial sensor
+    Bottle                *inIMUBottle;  // bottle used for the port
+
+    /**
+    * Updates a kinematic chain belonging to an eye. It can be either an iCubEye, 
+    * or an iCubHeadCenter.
+    **/
     void updateEyeChain(iKinChain &_eye, const string _eyeType);
+
+    /**
+    * Updates the iCubInertialSensor kinematic chain. Not that useful, though
+    * it has been implemented only to keep the syntax used for updateEyeChain.
+    **/
+    void updateIMUChain(iKinChain &_imu);
+
+    void run_torsoMode();
+    void run_inertialMode();
+
+    bool moveEyes(const Vector &_dq_E);
 
     /**
     * Prints a message according to the verbosity level:
@@ -110,7 +134,7 @@ protected:
 
 public:
     // CONSTRUCTOR
-    gazeStabilizerThread(int _rate, string _name, string _robot, int _v);
+    gazeStabilizerThread(int _rate, string _name, string _robot, int _v, string _if_mode, string _src_mode);
     // INIT
     virtual bool threadInit();
     // RUN

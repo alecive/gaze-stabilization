@@ -131,8 +131,11 @@ class gazeStabilizer: public RFModule
         {
             string name      = "gazeStabilizer";
             string robot     = "icub";
-            int    verbosity =      0;    // verbosity
-            int    rate      =    100;    // rate of the gazeStabilizerThread
+            int    verbosity =      0;     // verbosity
+            int    rate      =     10;     // rate of the gazeStabilizerThread
+            string if_mode   = "vel2";     // it can be either vel1 or vel2
+            string src_mode  = "torso";    // it can be either torso or inertial
+
 
             //******************* NAME ******************
                 if (rf.check("name"))
@@ -167,8 +170,33 @@ class gazeStabilizer: public RFModule
                 }
                 else printf(("*** "+name+": could not find robot option in the config file; using %s as default\n").c_str(),robot.c_str());
 
+            //************** INTERFACE_MODE **************
+                if (rf.check("if_mode"))
+                {
+                    if (rf.find("if_mode").asString() == "vel1" || rf.find("if_mode").asString() == "vel2")
+                    {
+                        if_mode = rf.find("if_mode").asString();
+                        printf(("*** "+name+": if_mode set to %s\n").c_str(),if_mode.c_str());
+                    }
+                    else printf(("*** "+name+": if_mode option found but not allowed; using %s as default\n").c_str(),if_mode.c_str());
+                }
+                else printf(("*** "+name+": could not find if_mode option in the config file; using %s as default\n").c_str(),if_mode.c_str());
+
+            //************** SOURCE_MODE **************
+                if (rf.check("src_mode"))
+                {
+                    if (rf.find("src_mode").asString() == "torso" || rf.find("src_mode").asString() == "inertial")
+                    {
+                        src_mode = rf.find("src_mode").asString();
+                        printf(("*** "+name+": src_mode set to %s\n").c_str(),src_mode.c_str());
+                    }
+                    else printf(("*** "+name+": src_mode option found but not allowed; using %s as default\n").c_str(),src_mode.c_str());
+                }
+                else printf(("*** "+name+": could not find src_mode option in the config file; using %s as default\n").c_str(),src_mode.c_str());
+
+
             //****************** THREAD ******************
-                gazeStabilizerThrd = new gazeStabilizerThread(rate, name, robot, verbosity);
+                gazeStabilizerThrd = new gazeStabilizerThread(rate, name, robot, verbosity, if_mode, src_mode);
 
                 gazeStabilizerThrd -> start();
                 bool strt = 1;
@@ -215,12 +243,14 @@ int main(int argc, char * argv[])
     if (rf.check("help"))
     {    
         cout << endl << "Options:" << endl;
-        cout << "   --context    path:  where to find the called resource" << endl;
-        cout << "   --from       from:  the name of the .ini file." << endl;
-        cout << "   --name       name:  the name of the module (default gazeStabilizer)." << endl;
-        cout << "   --robot      robot: the name of the robot. Default icub." << endl;
-        cout << "   --rate       rate:  the period used by the thread. Default 100ms." << endl;
-        cout << "   --verbosity  int:   verbosity level (default 1)." << endl;
+        cout << "   --context    path:   where to find the called resource" << endl;
+        cout << "   --from       from:   the name of the .ini file." << endl;
+        cout << "   --name       name:   the name of the module (default gazeStabilizer)." << endl;
+        cout << "   --robot      robot:  the name of the robot. Default icub." << endl;
+        cout << "   --rate       rate:   the period used by the thread. Default 100ms." << endl;
+        cout << "   --verbosity  int:    verbosity level (default 1)." << endl;
+        cout << "   --if_mode    mode:   interface to use for velocity control (either vel1 or vel2, default vel2)." << endl;
+        cout << "   --src_mode   source: source to use for compensating (either torso or inertial, default torso)." << endl;
         cout << endl;
         return 0;
     }

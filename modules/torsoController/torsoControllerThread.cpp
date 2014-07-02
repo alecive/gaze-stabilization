@@ -11,24 +11,26 @@ torsoControllerThread::torsoControllerThread(int _rate, string _name, string _ro
 
     Vector vec(3,0.0);
     
-    vec[0] =  10;
+    vec[0] =   5;
     ctrlCommands.push_back(vec);
 
-    vec[0] = -10;
-    ctrlCommands.push_back(vec);
-    ctrlCommands.push_back(vec);
-
-    vec[0] =  10;
-    ctrlCommands.push_back(vec);
-
-    vec[0] =   0;
-    vec[2] =  10;
+    vec[0] =  -5;
     ctrlCommands.push_back(vec);
     ctrlCommands.push_back(vec);
 
-    vec[2] = -10;
+    vec[0] =   5;
     ctrlCommands.push_back(vec);
-    ctrlCommands.push_back(vec);    
+
+    // vec[0] =   0;
+    // vec[2] =   5;
+    // ctrlCommands.push_back(vec);
+    // ctrlCommands.push_back(vec);
+
+    // vec[2] =  -5;
+    // ctrlCommands.push_back(vec);
+    // ctrlCommands.push_back(vec);    
+
+
 
     vec.zero();
     ctrlCommands.push_back(vec);    
@@ -84,7 +86,8 @@ void torsoControllerThread::run()
         {
             timeNow = yarp::os::Time::now();
             cmdcnt += 1;
-            printMessage(0,"Sending command #%i\n",cmdcnt);
+            printMessage(0,"Sending command #%i: %s\n",cmdcnt,
+                            ctrlCommands[cmdcnt].toString().c_str());
         }
     }
     else if (cmdcnt < ctrlCommands.size())
@@ -96,7 +99,8 @@ void torsoControllerThread::run()
         {
             timeNow = yarp::os::Time::now();
             cmdcnt += 1;
-            printMessage(0,"Sending command #%i\n",cmdcnt);
+            printMessage(0,"Sending command #%i: %s\n",cmdcnt,
+                            ctrlCommands[cmdcnt].toString().c_str());
         }
     }
     else
@@ -151,6 +155,10 @@ void torsoControllerThread::closePort(Contactable *_port)
 
 void torsoControllerThread::threadRelease()
 {
+    printMessage(0,"Putting torso in home position..\n");
+        Vector pos0(3,0.0);
+        iposT -> positionMove(pos0.data());
+
     printMessage(0,"Closing controllers..\n");
         ddT.close();
 }
