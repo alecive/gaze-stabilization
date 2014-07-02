@@ -21,6 +21,7 @@
 
 #include <yarp/os/Time.h>
 #include <yarp/os/RateThread.h>
+#include <yarp/os/RpcClient.h>
 
 #include <yarp/sig/Vector.h>
 
@@ -58,7 +59,10 @@ protected:
     int     cmdcnt;
     std::vector <yarp::sig::Vector> ctrlCommands;
 
-    Port outPort;
+    Port      outPort;
+    RpcClient GSrpcPort;
+
+    void gateStabilization(const string _g);
 
     void sendCommand();
 

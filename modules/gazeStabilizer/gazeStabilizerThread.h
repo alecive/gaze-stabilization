@@ -92,9 +92,10 @@ protected:
     iKinChain           *chainEyeR;
     iKinChain           *chainIMU;
 
-    // Internal matrixes and variables
+    // Internal matrices and variables
     Vector xFP_R;
     Matrix J_E;
+    bool isRunning;         // Flag to manage the status of the thread
 
     // Input from the torsoController
     BufferedPort<Bottle>  *inTorsoPort;   // port for reading from the torsoController
@@ -141,4 +142,8 @@ public:
     virtual void run();
     // RELEASE
     virtual void threadRelease();
+
+    // START AND STOP THE STABILIZATION
+    bool startStabilization();
+    bool  stopStabilization();
 };

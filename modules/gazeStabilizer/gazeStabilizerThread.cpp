@@ -15,6 +15,9 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string _name, string _robo
     eyeL = new iCubEye("left_v2");
     eyeR = new iCubEye("right_v2");
     neck = new iCubHeadCenter("right_v2");
+    IMU  = new iCubInertialSensor("v2");
+
+    isRunning = false;
 
     // Release torso links
     for (int i = 0; i < 3; i++)
@@ -131,38 +134,52 @@ void gazeStabilizerThread::run()
     * 2 - Update the iCubHeadCenter, eyeR and eyeL with those values
     * 3 - Compute Fixation Point Data (x_FP and J_E)
     */
-
-    // 1 - Read the encoders for torso and head
-    iencsT->getEncoders(encsT->data());
-    iencsH->getEncoders(encsH->data());
-
-    // 2 - Update the iCubHeadCenter, eyeR and eyeL with those values
-    updateEyeChain(*chainEyeL,"left");
-    updateEyeChain(*chainEyeR,"right");
-    updateEyeChain(*chainNeck,"right");
-    updateIMUChain(*chainIMU);
-    printMessage(2,"EyeL: %s\n",(CTRL_RAD2DEG*(eyeL->getAng())).toString().c_str());
-    printMessage(2,"EyeR: %s\n",(CTRL_RAD2DEG*(eyeR->getAng())).toString().c_str());
-    printMessage(2,"Neck: %s\n",(CTRL_RAD2DEG*(neck->getAng())).toString().c_str());
-    printMessage(2,"IMU:  %s\n",(CTRL_RAD2DEG*(IMU ->getAng())).toString().c_str());
-
-
-    // 3 - Compute Fixation Point Data (x_FP and J_E)
-    if (CartesianHelper::computeFixationPointData(*chainEyeL,*chainEyeR,xFP_R,J_E))
+    if (isRunning)
     {
-        printMessage(1,"xFP_R:\t%s\n", xFP_R.toString().c_str());
-        printMessage(1,"J_E:\n%s\n\n",   J_E.toString().c_str());
+        // 1 - Read the encoders for torso and head
+        iencsT->getEncoders(encsT->data());
+        iencsH->getEncoders(encsH->data());
 
-        // At this point, compute the source-dependent tasks
-        if (src_mode == "torso")
+        // 2 - Update the iCubHeadCenter, eyeR and eyeL with those values
+        updateEyeChain(*chainEyeL,"left");
+        updateEyeChain(*chainEyeR,"right");
+        updateEyeChain(*chainNeck,"right");
+        updateIMUChain(*chainIMU);
+        printMessage(2,"EyeL: %s\n",(CTRL_RAD2DEG*(eyeL->getAng())).toString().c_str());
+        printMessage(2,"EyeR: %s\n",(CTRL_RAD2DEG*(eyeR->getAng())).toString().c_str());
+        printMessage(2,"Neck: %s\n",(CTRL_RAD2DEG*(neck->getAng())).toString().c_str());
+        printMessage(2,"IMU:  %s\n",(CTRL_RAD2DEG*(IMU ->getAng())).toString().c_str());
+
+
+        // 3 - Compute Fixation Point Data (x_FP and J_E)
+        if (CartesianHelper::computeFixationPointData(*chainEyeL,*chainEyeR,xFP_R,J_E))
         {
-            run_torsoMode();
-        }
-        else if (src_mode == "inertial")
-        {
-            run_inertialMode();
+            printMessage(1,"xFP_R:\t%s\n", xFP_R.toString().c_str());
+            printMessage(1,"J_E:\n%s\n\n",   J_E.toString().c_str());
+
+            // At this point, compute the source-dependent tasks
+            if (src_mode == "torso")
+            {
+                run_torsoMode();
+            }
+            else if (src_mode == "inertial")
+            {
+                run_inertialMode();
+            }
         }
     }
+}
+
+bool gazeStabilizerThread::startStabilization()
+{
+    isRunning = true;
+    return true;
+}
+
+bool gazeStabilizerThread::stopStabilization()
+{
+    isRunning = false;
+    return true;
 }
 
 void gazeStabilizerThread::run_inertialMode()
@@ -202,7 +219,8 @@ void gazeStabilizerThread::run_inertialMode()
 
         Matrix J_E_pinv = pinv(J_E);
         printMessage(1,"J_E_pinv:\n%s\n",J_E_pinv.toString().c_str());
-        Vector dq_E = -1.0*(J_E_pinv*vor_fprelv);
+        Vector dq_E = CTRL_RAD2DEG * 1.0 * (J_E_pinv*vor_fprelv);
+        printMessage(0,"dq_E:\t%s\n", dq_E.toString().c_str());
 
         // 9 - Send dq_E
         moveEyes(dq_E);
@@ -230,6 +248,7 @@ void gazeStabilizerThread::run_torsoMode()
         dq[2] = inTorsoBottle->get(0).asDouble();
         dq[1] = inTorsoBottle->get(1).asDouble();
         dq[0] = inTorsoBottle->get(2).asDouble();
+        dq = CTRL_DEG2RAD * dq;
 
         // 5 - Convert x_FP from root to RF_E
         chainNeck -> setHN(eye(4));
@@ -255,7 +274,7 @@ void gazeStabilizerThread::run_torsoMode()
         // 8 - Compute dq_E  = J_E+ * dx_FP;
         Matrix J_E_pinv = pinv(J_E);
         printMessage(1,"J_E_pinv:\n%s\n",J_E_pinv.toString().c_str());
-        Vector dq_E = J_E_pinv * dx_FP.subVector(0,2);
+        Vector dq_E = CTRL_RAD2DEG * (J_E_pinv * dx_FP.subVector(0,2));
         printMessage(0,"dq_E:\t%s\n", dq_E.toString().c_str());
 
         // 9 - Send dq_E

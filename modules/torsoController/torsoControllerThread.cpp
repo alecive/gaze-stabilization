@@ -11,24 +11,24 @@ torsoControllerThread::torsoControllerThread(int _rate, string _name, string _ro
 
     Vector vec(3,0.0);
     
-    vec[0] =   5;
+    vec[0] =  10;
     ctrlCommands.push_back(vec);
 
-    vec[0] =  -5;
+    vec[0] = -10;
     ctrlCommands.push_back(vec);
     ctrlCommands.push_back(vec);
 
-    vec[0] =   5;
+    vec[0] =  10;
     ctrlCommands.push_back(vec);
 
-    // vec[0] =   0;
-    // vec[2] =   5;
-    // ctrlCommands.push_back(vec);
-    // ctrlCommands.push_back(vec);
+    vec[0] =   0;
+    vec[2] =  10;
+    ctrlCommands.push_back(vec);
+    ctrlCommands.push_back(vec);
 
-    // vec[2] =  -5;
-    // ctrlCommands.push_back(vec);
-    // ctrlCommands.push_back(vec);    
+    vec[2] = -10;
+    ctrlCommands.push_back(vec);
+    ctrlCommands.push_back(vec);    
 
 
 
@@ -39,7 +39,9 @@ torsoControllerThread::torsoControllerThread(int _rate, string _name, string _ro
 bool torsoControllerThread::threadInit()
 {
     outPort.open(("/"+name+"/gazeStabilizer:o").c_str());
+    GSrpcPort.open(("/"+name+"/rpc:o").c_str());
     Network::connect(("/"+name+"/gazeStabilizer:o").c_str(),"/gazeStabilizer/torsoController:i");
+    Network::connect(("/"+name+"/rpc:o").c_str(),"/gazeStabilizer/rpc:i");
 
     bool ok = 1;
     Property OptT;
@@ -77,6 +79,8 @@ void torsoControllerThread::run()
         printMessage(0,"Putting torso in home position..\n");
         Vector pos0(3,0.0);
         iposT -> positionMove(pos0.data());
+        printMessage(0,"Starting stabilization..\n");
+        gateStabilization("start");
         timeNow = yarp::os::Time::now();
         cmdcnt +=1;
     }
@@ -108,9 +112,20 @@ void torsoControllerThread::run()
         if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
         {
             timeNow = yarp::os::Time::now();
-            printMessage(0,"Finished.\n");
+            printMessage(0,"Finished. Stopping stabilization..\n");
+            gateStabilization("stop");
         }
     }
+}
+
+void torsoControllerThread::gateStabilization(const string _g)
+{
+    Bottle cmdGS;
+    Bottle respGS;
+    cmdGS.clear();
+    respGS.clear();
+    cmdGS.addString(_g);
+    GSrpcPort.write(cmdGS,respGS);
 }
 
 void torsoControllerThread::sendCommand()
@@ -158,6 +173,9 @@ void torsoControllerThread::threadRelease()
     printMessage(0,"Putting torso in home position..\n");
         Vector pos0(3,0.0);
         iposT -> positionMove(pos0.data());
+
+    printMessage(0,"Stopping gazeStabilizer..\n");
+        gateStabilization("stop");
 
     printMessage(0,"Closing controllers..\n");
         ddT.close();

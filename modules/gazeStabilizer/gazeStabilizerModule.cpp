@@ -91,6 +91,7 @@ Linux (Ubuntu 12.04, Debian Squeeze).
 #include <yarp/os/Time.h>
 #include <yarp/os/Network.h>
 #include <yarp/os/RateThread.h>
+#include <yarp/os/RpcServer.h>
 
 #include <yarp/sig/Vector.h>
 #include <yarp/sig/Matrix.h>
@@ -120,11 +121,57 @@ class gazeStabilizer: public RFModule
 {
     private:
         gazeStabilizerThread *gazeStabilizerThrd;
+        RpcServer             rpcSrvr;
 
     public:
         gazeStabilizer()
         {
             gazeStabilizerThrd=0;
+        }
+
+        bool respond(const Bottle &command, Bottle &reply)
+        {
+            int ack =Vocab::encode("ack");
+            int nack=Vocab::encode("nack");
+
+            if (command.size()>0)
+            {
+                switch (command.get(0).asVocab())
+                {
+                    case VOCAB4('s','t','a','r'):
+                    {
+                        int res=Vocab::encode("started");
+                        if (gazeStabilizerThrd -> startStabilization())
+                        {
+                            reply.addVocab(ack);
+                        }
+                        else
+                            reply.addVocab(nack);
+                        
+                        reply.addVocab(res);
+                        return true;
+                    }
+                    case VOCAB4('s','t','o','p'):
+                    {
+                        int res=Vocab::encode("stopped");
+                        if (gazeStabilizerThrd -> stopStabilization())
+                        {
+                            reply.addVocab(ack);
+                        }
+                        else
+                            reply.addVocab(nack);
+                        
+                        reply.addVocab(res);
+                        return true;
+                    }
+                    //-----------------
+                    default:
+                        return RFModule::respond(command,reply);
+                }
+            }
+
+            reply.addVocab(nack);
+            return true;
         }
 
         bool configure(ResourceFinder &rf)
@@ -143,7 +190,7 @@ class gazeStabilizer: public RFModule
                     name = rf.find("name").asString();
                     printf("*** Module name set to %s\n",name.c_str());  
                 }
-                else printf("*** Module name set to default, i.e. %s",name.c_str());
+                else printf("*** Module name set to default, i.e. %s\n",name.c_str());
                 setName(name.c_str());
 
             //****************** rate ******************
@@ -208,6 +255,12 @@ class gazeStabilizer: public RFModule
                     return false;
                 }
                 cout << "GAZE STABILIZER: gazeStabilizerThread istantiated...\n";
+
+
+            //******************************************************
+            //************************ PORTS ***********************
+                rpcSrvr.open(("/"+name+"/rpc:i").c_str());
+                attach(rpcSrvr);
 
             return true;
         }

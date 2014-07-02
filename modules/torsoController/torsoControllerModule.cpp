@@ -91,6 +91,7 @@ Linux (Ubuntu 12.04, Debian Squeeze).
 #include <yarp/os/Time.h>
 #include <yarp/os/Network.h>
 #include <yarp/os/RateThread.h>
+#include <yarp/os/RpcClient.h>
 
 #include <yarp/sig/Vector.h>
 #include <yarp/sig/Matrix.h>
