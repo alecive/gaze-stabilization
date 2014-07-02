@@ -269,7 +269,7 @@ void gazeStabilizerThread::run_torsoMode()
         Matrix J_TH = chainNeck -> GeoJacobian();
         printMessage(1,"J_TH:\n%s\n",J_TH.toString().c_str());
         Vector dx_FP = J_TH * dq;
-        printMessage(0,"dx_FP:\t%s\n", dx_FP.toString().c_str());
+        printMessage(1,"dx_FP:\t%s\n", dx_FP.toString().c_str());
 
         // 8 - Compute dq_E  = J_E+ * dx_FP;
         Matrix J_E_pinv = pinv(J_E);

@@ -22,11 +22,11 @@ torsoControllerThread::torsoControllerThread(int _rate, string _name, string _ro
     ctrlCommands.push_back(vec);
 
     vec[0] =   0;
-    vec[2] =  10;
+    vec[2] =   5;
     ctrlCommands.push_back(vec);
     ctrlCommands.push_back(vec);
 
-    vec[2] = -10;
+    vec[2] =  -5;
     ctrlCommands.push_back(vec);
     ctrlCommands.push_back(vec);    
 
