@@ -33,7 +33,6 @@
 #include <stdarg.h>
 #include <vector>
 
-using namespace yarp;
 using namespace yarp::os;
 using namespace yarp::sig;
 using namespace yarp::dev;

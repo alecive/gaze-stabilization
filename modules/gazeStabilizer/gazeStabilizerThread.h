@@ -44,7 +44,6 @@
 #include <stdarg.h>
 #include <deque>
 
-using namespace yarp;
 using namespace yarp::os;
 using namespace yarp::sig;
 using namespace yarp::math;

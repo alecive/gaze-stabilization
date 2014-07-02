@@ -104,7 +104,6 @@ Linux (Ubuntu 12.04, Debian Squeeze).
 
 #include "gazeStabilizerThread.h"
 
-using namespace yarp;
 using namespace yarp::os;
 using namespace yarp::sig;
 using namespace yarp::math;
