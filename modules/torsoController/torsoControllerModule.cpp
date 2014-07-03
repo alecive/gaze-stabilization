@@ -164,10 +164,11 @@ class torsoController: public RFModule
 
         bool configure(ResourceFinder &rf)
         {
-            string name      = "torsoController";
-            string robot     = "icub";
-            int    verbosity =      0;    // verbosity
-            int    rate      =     10;    // rate of the torsoControllerThread
+            string name         = "torsoController";
+            string robot        = "icub";
+            int    verbosity    =      0;    // verbosity
+            int    rate         =     10;    // rate of the torsoControllerThread
+            int    numWaypoints =      1;
 
             //******************* NAME ******************
                 if (rf.check("name"))
@@ -202,8 +203,17 @@ class torsoController: public RFModule
                 }
                 else printf(("*** "+name+": could not find robot option in the config file; using %s as default\n").c_str(),robot.c_str());
 
+
+            //******************* VERBOSE ******************
+                if (rf.check("numWaypoints"))
+                {
+                    numWaypoints = rf.find("numWaypoints").asInt();
+                    printf(("*** "+name+": numWaypoints set to %i\n").c_str(),numWaypoints);
+                }
+                else printf(("*** "+name+": could not find numWaypoints option in the config file; using %i as default\n").c_str(),numWaypoints);
+
             //****************** THREAD ******************
-                torsoControllerThrd = new torsoControllerThread(rate, name, robot, verbosity);
+                torsoControllerThrd = new torsoControllerThread(rate, name, robot, verbosity, numWaypoints, rf);
 
                 torsoControllerThrd -> start();
                 bool strt = 1;
@@ -243,7 +253,7 @@ int main(int argc, char * argv[])
 {
     ResourceFinder rf;
     rf.setVerbose(true);
-    rf.setDefaultContext("torsoController");
+    rf.setDefaultContext("gazeStabilization");
     rf.setDefaultConfigFile("torsoController.ini");
     rf.configure(argc,argv);
 

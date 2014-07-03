@@ -2,36 +2,105 @@
 
 #define CTRL_PERIOD 2
 
-torsoControllerThread::torsoControllerThread(int _rate, string _name, string _robot, int _v) :
-                                           RateThread(_rate), name(_name),
-                                           robot(_robot), verbosity(_v)
+string int_to_string( const int a )
+{
+    std::stringstream ss;
+    ss << a;
+    return ss.str();
+}
+
+wayPoint::wayPoint()
+{
+    name = "";
+    jntlims.resize(3,0.0);
+    vels.resize(3,0.0);
+}
+
+wayPoint::wayPoint(string _name)
+{
+    name = _name;
+    jntlims.resize(3,0.0);
+    vels.resize(3,0.0);
+}
+
+wayPoint::wayPoint(string _name, Vector _jntlims, Vector _vels)
+{
+    name    = _name;
+    jntlims = _jntlims;
+    vels    = _vels;
+}
+
+wayPoint & wayPoint::operator= (const wayPoint &jv)
+{
+    name    = jv.name;
+    jntlims = jv.jntlims;
+    vels    = jv.vels;
+}
+
+void wayPoint::print()
+{
+    printf("*** %s\n",name.c_str());
+    printf("jntl: %s\n",jntlims.toString(3,3).c_str());
+    printf("vels: %s\n",vels.toString(3,3).c_str());
+    printf("**********\n");
+}
+
+void wayPoint::printCompact()
+{
+    printf("*** %s\t",name.c_str());
+    printf("jntl: %s\t",jntlims.toString(3,3).c_str());
+    printf("vels: %s\n",vels.toString(3,3).c_str());
+}
+
+
+torsoControllerThread::torsoControllerThread(int _rate, string _name, string _robot, int _v, int _nW, const ResourceFinder &_rf) :
+                                           RateThread(_rate), name(_name), robot(_robot), verbosity(_v), numWaypoints(_nW)
 {
     timeNow = yarp::os::Time::now();
     cmdcnt  = -2;
+    ResourceFinder &rf = const_cast<ResourceFinder&>(_rf);
+    step               = 0;
+    currentWaypoint    = 0;
 
-    Vector vec(3,0.0);
-    
-    vec[0] =  10;
-    ctrlCommands.push_back(vec);
+    //******************* ITERATIONS ******************
+    iterations=rf.check("iterations",Value(1)).asInt();
+    printf(("*** "+name+": number of iterations set to %g\n").c_str(),iterations);
 
-    vec[0] = -10;
-    ctrlCommands.push_back(vec);
-    ctrlCommands.push_back(vec);
+    //******************* WAYPOINTS ******************
+    wayPoints.push_back(wayPoint("START      "));        // The first group is the home position
 
-    vec[0] =  10;
-    ctrlCommands.push_back(vec);
+    for (int j = 0; j < iterations; j++)
+    {
+        for (int i = 0; i < numWaypoints; i++)
+        {
+            string wayPointName = "WAYPOINT_"+int_to_string(i);
+            
+            Bottle &b = rf.findGroup(wayPointName.c_str());
+            if (!b.isNull())
+            {
+                printMessage(1,"%s found: %s\n",wayPointName.c_str(),b.toString().c_str());
+                Vector _jntlims(3,0.0);
+                Vector _vels(3,0.0);
+                Bottle *bj = b.find("jntlims").asList();
+                Bottle *bv = b.find("vels").asList();
 
-    vec[0] =   0;
-    vec[2] =   5;
-    ctrlCommands.push_back(vec);
-    ctrlCommands.push_back(vec);
+                for (int j = 0; j < _jntlims.size(); j++)
+                {
+                    _jntlims[j] = bj->get(j).asDouble();
+                    _vels[j] = bv->get(j).asDouble();
+                }
+                wayPoints.push_back(wayPoint(wayPointName,_jntlims,_vels));
+            }
+        }
+    }
 
-    vec[2] =  -5;
-    ctrlCommands.push_back(vec);
-    ctrlCommands.push_back(vec);    
+    wayPoints.push_back(wayPoint("END        "));   // The last group will be the home position as well
+    numWaypoints = wayPoints.size();                // The number of waypoints is simply the size of the vector
 
-    vec.zero();
-    ctrlCommands.push_back(vec);    
+    for (int i = 0; i < numWaypoints; i++)
+    {
+        wayPoints[i].print();
+    }
 }
 
 bool torsoControllerThread::threadInit()
@@ -59,6 +128,7 @@ bool torsoControllerThread::threadInit()
     {
         ok = ok && ddT.view(iposT);
         ok = ok && ddT.view(ivelT);
+        ok = ok && ddT.view(iencsT);
     }
 
     if (!ok)
@@ -67,53 +137,152 @@ bool torsoControllerThread::threadInit()
         return false;
     }
 
+    iencsT -> getAxes(&jntsT);
+    encsT = new Vector(jntsT,0.0);
+
     return true;
 }
 
 void torsoControllerThread::run()
 {
-    if (cmdcnt == -2)   // put torso in 0 0 0 (positionMove)
+    switch (step)
     {
-        printMessage(0,"Putting torso in home position..\n");
+        case 0:
+            Time::delay(0.1); // only to avoid a printing issue in the terminal
+            printMessage(0,"Starting.. Going to wayPoint #%i: ",currentWaypoint);
+            wayPoints[currentWaypoint].printCompact();
+            step++;
+            break;
+        case 1:
+            if (!processWayPoint())
+            {
+                printMessage(0,"Starting stabilization..\n");
+                gateStabilization("start");
+                currentWaypoint++;
+                step++;
+                timeNow = yarp::os::Time::now();
+            }
+            break;
+        case 2:
+            printMessage(0,"Going to wayPoint #%i: ",currentWaypoint);
+            wayPoints[currentWaypoint].printCompact();
+            step++;
+            break;
+        case 3:
+            if (!processWayPoint())
+            {
+                timeNow = yarp::os::Time::now();
+                currentWaypoint++;
+                if (currentWaypoint < numWaypoints)
+                {
+                    step = 2;
+                }
+                else
+                    step++;
+            }
+            break;
+        case 4:
+            printMessage(0,"Finished. Stopping stabilization..\n");
+            gateStabilization("stop");
+            step++;
+            break;              
+        default:
+            printMessage(1,"Finished.\n");
+            break;
+    }
+
+    // if (cmdcnt == -2)   // put torso in 0 0 0 (positionMove)
+    // {
+    //     printMessage(0,"Putting torso in home position..\n");
+    //     Vector pos0(3,0.0);
+    //     iposT -> positionMove(pos0.data());
+    //     printMessage(0,"Starting stabilization..\n");
+    //     gateStabilization("start");
+    //     timeNow = yarp::os::Time::now();
+    //     cmdcnt +=1;
+    // }
+    // else if (cmdcnt == -1)
+    // {
+    //     if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
+    //     {
+    //         timeNow = yarp::os::Time::now();
+    //         cmdcnt += 1;
+    //         printMessage(0,"Sending command #%i: %s\n",cmdcnt,
+    //                         ctrlCommands[cmdcnt].toString().c_str());
+    //     }
+    // }
+    // else if (cmdcnt < ctrlCommands.size())
+    // {
+    //     ivelT -> velocityMove(ctrlCommands[cmdcnt].data());
+    //     sendCommand();
+
+    //     if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
+    //     {
+    //         timeNow = yarp::os::Time::now();
+    //         cmdcnt += 1;
+    //         printMessage(0,"Sending command #%i: %s\n",cmdcnt,
+    //                         ctrlCommands[cmdcnt].toString().c_str());
+    //     }
+    // }
+    // else
+    // {
+    //     if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
+    //     {
+    //         timeNow = yarp::os::Time::now();
+    //         printMessage(0,"Finished. Stopping stabilization..\n");
+    //         gateStabilization("stop");
+    //     }
+    // }
+}
+
+bool torsoControllerThread::processWayPoint()
+{
+    if (wayPoints[currentWaypoint].name == "START      " ||
+        wayPoints[currentWaypoint].name == "END        ")
+    {
+        printMessage(1,"Putting torso in home position..\n");
         Vector pos0(3,0.0);
         iposT -> positionMove(pos0.data());
-        printMessage(0,"Starting stabilization..\n");
-        gateStabilization("start");
-        timeNow = yarp::os::Time::now();
-        cmdcnt +=1;
-    }
-    else if (cmdcnt == -1)
-    {
-        if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
-        {
-            timeNow = yarp::os::Time::now();
-            cmdcnt += 1;
-            printMessage(0,"Sending command #%i: %s\n",cmdcnt,
-                            ctrlCommands[cmdcnt].toString().c_str());
-        }
-    }
-    else if (cmdcnt < ctrlCommands.size())
-    {
-        ivelT -> velocityMove(ctrlCommands[cmdcnt].data());
-        sendCommand();
 
         if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
         {
-            timeNow = yarp::os::Time::now();
-            cmdcnt += 1;
-            printMessage(0,"Sending command #%i: %s\n",cmdcnt,
-                            ctrlCommands[cmdcnt].toString().c_str());
+            return false;
         }
     }
     else
     {
-        if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
+        Vector jls = wayPoints[currentWaypoint].jntlims;
+        Vector vls = wayPoints[currentWaypoint].vels;
+        bool flag = false;
+
+        iencsT->getEncoders(encsT->data());
+        yarp::sig::Vector torso = *encsT;
+
+        ivelT -> velocityMove(vls.data());
+        sendCommand();
+
+        for (int i = 0; i < 3; i++)
         {
-            timeNow = yarp::os::Time::now();
-            printMessage(0,"Finished. Stopping stabilization..\n");
-            gateStabilization("stop");
+            if      (vls(i) > 0.0)
+            {
+                if (jls(i) - torso(i) > 0.0)
+                {
+                    flag = true;
+                }
+            }
+            else if (vls(i) < 0.0)
+            {
+                if (jls(i) - torso(i) < 0.0)
+                {
+                    flag = true;
+                }
+            }
         }
+
+        return flag;
     }
+
+    return true;
 }
 
 bool torsoControllerThread::redoCycle()
@@ -146,7 +315,7 @@ void torsoControllerThread::sendCommand()
     b.clear();
     for (size_t i = 0; i < 3; i++)
     {
-        b.addDouble(ctrlCommands[cmdcnt](i));
+        b.addDouble(wayPoints[currentWaypoint].vels(i));
     }
     outPort.write(b);
 }

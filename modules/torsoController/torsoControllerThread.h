@@ -19,9 +19,7 @@
  * the affected taxel.
 */
 
-#include <yarp/os/Time.h>
-#include <yarp/os/RateThread.h>
-#include <yarp/os/RpcClient.h>
+#include <yarp/os/all.h>
 
 #include <yarp/sig/Vector.h>
 
@@ -32,6 +30,7 @@
 #include <iostream>
 #include <string>
 #include <stdarg.h>
+#include <sstream>
 #include <vector>
 
 using namespace yarp::os;
@@ -40,6 +39,30 @@ using namespace yarp::dev;
 
 using namespace std;
 
+string int_to_string( const int a );
+
+struct wayPoint
+{
+    string name;
+    Vector jntlims;    // torso joints
+    Vector vels;       // torso velocities
+
+    wayPoint();
+    wayPoint(string _name);
+    wayPoint(string _name, Vector _jntlims, Vector _vels);
+
+    /**
+    * Copy Operator
+    **/
+    wayPoint &operator=(const wayPoint &jv);
+
+    /**
+    * Print functions
+    **/
+    void print();
+    void printCompact();
+};
+
 class torsoControllerThread: public RateThread
 {
 protected:
@@ -47,17 +70,25 @@ protected:
     // EXTERNAL VARIABLES: change them from command line or through .ini file
     int verbosity;      // Flag that manages verbosity
     string name;        // Name of the module (to change port names accordingly)  
-    string robot;       // Name of the robot (to address both icub and icubSim):
+    string robot;       // Name of the robot (to address both icub and icubSim)
+    int iterations;
 
     // Classical interfaces - TORSO
-    PolyDriver       ddT;   // torso device driver
-    
+    PolyDriver          ddT;   // torso device driver
     IPositionControl   *iposT;
     IVelocityControl2  *ivelT;
+    IEncoders          *iencsT;
+    Vector             *encsT;
+    int jntsT;
 
     double timeNow;
     int     cmdcnt;
     std::vector <yarp::sig::Vector> ctrlCommands;
+
+    std::vector<wayPoint> wayPoints;
+    int currentWaypoint;
+    int    numWaypoints;
+    int            step;    // Flag to know in which step the thread is
 
     Port      outPort;
     RpcClient GSrpcPort;
@@ -65,6 +96,8 @@ protected:
     void gateStabilization(const string _g);
 
     void sendCommand();
+
+    bool processWayPoint();
 
     /**
     * Prints a message according to the verbosity level:
@@ -80,7 +113,7 @@ protected:
 
 public:
     // CONSTRUCTOR
-    torsoControllerThread(int _rate, string _name, string _robot, int _v);
+    torsoControllerThread(int _rate, string _name, string _robot, int _v, int _nW, const ResourceFinder &_rf);
     // INIT
     virtual bool threadInit();
     // RUN
