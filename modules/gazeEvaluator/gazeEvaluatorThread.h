@@ -66,7 +66,8 @@ protected:
     string robot;       // Name of the robot (to address both icub and icubSim)
 
     BufferedPort<ImageOf<PixelRgb> > *imagePortIn;
-    BufferedPort<ImageOf<PixelBgr> > *imagePortOut;
+    BufferedPort<ImageOf<PixelBgr> > *imagePortOutFlow;
+    BufferedPort<ImageOf<PixelBgr> > *imagePortOutNorm;
 
     yarp::sig::ImageOf<yarp::sig::PixelRgb>* imageIn;
 
@@ -84,6 +85,7 @@ protected:
     void sendOptFlow();
 
     IplImage* draw2DMotionField();
+    void drawFlowModule(IplImage* imgMotion);
 
     /**
     * Prints a message according to the verbosity level:
