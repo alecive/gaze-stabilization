@@ -122,11 +122,44 @@ class torsoController: public RFModule
 {
     private:
         torsoControllerThread *torsoControllerThrd;
+        RpcServer             rpcSrvr;
 
     public:
         torsoController()
         {
             torsoControllerThrd=0;
+        }
+
+        bool respond(const Bottle &command, Bottle &reply)
+        {
+            int ack =Vocab::encode("ack");
+            int nack=Vocab::encode("nack");
+
+            if (command.size()>0)
+            {
+                switch (command.get(0).asVocab())
+                {
+                    case VOCAB4('r','e','d','o'):
+                    {
+                        int res=Vocab::encode("started");
+                        if (torsoControllerThrd -> redoCycle())
+                        {
+                            reply.addVocab(ack);
+                        }
+                        else
+                            reply.addVocab(nack);
+                        
+                        reply.addVocab(res);
+                        return true;
+                    }
+                    //-----------------
+                    default:
+                        return RFModule::respond(command,reply);
+                }
+            }
+
+            reply.addVocab(nack);
+            return true;
         }
 
         bool configure(ResourceFinder &rf)

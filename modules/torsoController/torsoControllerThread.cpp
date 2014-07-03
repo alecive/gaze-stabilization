@@ -30,8 +30,6 @@ torsoControllerThread::torsoControllerThread(int _rate, string _name, string _ro
     ctrlCommands.push_back(vec);
     ctrlCommands.push_back(vec);    
 
-
-
     vec.zero();
     ctrlCommands.push_back(vec);    
 }
@@ -116,6 +114,20 @@ void torsoControllerThread::run()
             gateStabilization("stop");
         }
     }
+}
+
+bool torsoControllerThread::redoCycle()
+{
+    if (cmdcnt < ctrlCommands.size())
+    {
+        return false; // it means that it didn't finish this cycle yet
+    }
+    else
+    {
+        cmdcnt = -2;
+        return true;
+    }
+    return true;
 }
 
 void torsoControllerThread::gateStabilization(const string _g)

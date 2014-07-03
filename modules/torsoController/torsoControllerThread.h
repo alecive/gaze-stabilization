@@ -87,4 +87,6 @@ public:
     virtual void run();
     // RELEASE
     virtual void threadRelease();
+    // RESTART THE CYCLE
+    bool redoCycle();
 };
