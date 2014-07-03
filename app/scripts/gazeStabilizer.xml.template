@@ -1,9 +1,16 @@
 <application>
-    <name>chessEyeTest</name>
+    <name>gazeStabilizer</name>
 
     <module>
         <name>yarpview</name>
-        <parameters>--name /gazeEval --x 0 --y   0</parameters>
+        <parameters>--name /gazeEvalFlow --x 0 --y   0</parameters>
+        <node>localhost</node>
+        <stdio></stdio>
+        <tag>yarpview</tag>
+    </module>
+    <module>
+        <name>yarpview</name>
+        <parameters>--name /gazeEvalModule --x 0 --y   0</parameters>
         <node>localhost</node>
         <stdio></stdio>
         <tag>yarpview</tag>
@@ -33,8 +40,13 @@
         <protocol>udp</protocol>
     </connection>
     <connection>
-        <from>/gazeEvaluator/img:o</from>
-        <to>/gazeEval</to>
+        <from>/gazeEvaluator/optFlow:o</from>
+        <to>/gazeEvalFlow</to>
+        <protocol>udp</protocol>
+    </connection>
+    <connection>
+        <from>/gazeEvaluator/optFModule:o</from>
+        <to>/gazeEvalModule</to>
         <protocol>udp</protocol>
     </connection>
 
