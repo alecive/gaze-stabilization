@@ -36,13 +36,11 @@
 #include <iCub/iKin/iKinInv.h>
 #include <iCub/ctrl/math.h>
 
-#include <cv.h>
-#include <highgui.h>
-
 #include <iostream>
 #include <string>
 #include <stdarg.h>
 #include <deque>
+#include <vector>
 
 using namespace yarp::os;
 using namespace yarp::sig;

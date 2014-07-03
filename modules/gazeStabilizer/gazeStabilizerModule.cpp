@@ -256,9 +256,7 @@ class gazeStabilizer: public RFModule
                 }
                 cout << "GAZE STABILIZER: gazeStabilizerThread istantiated...\n";
 
-
-            //******************************************************
-            //************************ PORTS ***********************
+            //************************ RPC ***********************
                 rpcSrvr.open(("/"+name+"/rpc:i").c_str());
                 attach(rpcSrvr);
 
