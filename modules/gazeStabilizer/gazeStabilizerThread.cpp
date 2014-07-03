@@ -92,6 +92,9 @@ bool gazeStabilizerThread::threadInit()
     iencsH -> getAxes(&jntsH);
     encsH = new Vector(jntsH,0.0);
 
+    Vector headAcc(jntsH,1e9);
+    ivelH1 -> setRefAccelerations(headAcc.data());
+
     Property OptT;
     OptT.put("robot",  robot.c_str());
     OptT.put("part",   "torso");
