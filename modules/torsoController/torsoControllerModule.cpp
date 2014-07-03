@@ -226,6 +226,10 @@ class torsoController: public RFModule
                 }
                 cout << "TORSO CONTROLLER: torsoControllerThread istantiated...\n";
 
+            //************************ RPC ***********************
+                rpcSrvr.open(("/"+name+"/rpc:i").c_str());
+                attach(rpcSrvr);
+
             return true;
         }
 
