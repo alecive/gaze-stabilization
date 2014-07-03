@@ -1,58 +1,40 @@
 <application>
     <name>chessEyeTest</name>
 
-    <dependencies>
-        <port>/icub/camcalib/left/out</port>
-        <port>/icub/camcalib/right/out</port>
-    </dependencies>
-
     <module>
         <name>yarpview</name>
-        <parameters>--name /chessEyeTestInL --x 0 --y   0</parameters>
+        <parameters>--name /gazeEval --x 0 --y   0</parameters>
         <node>localhost</node>
         <stdio></stdio>
         <tag>yarpview</tag>
     </module>
     <module>
-        <name>yarpview</name>
-        <parameters>--name /chessEyeTestInR --x 0 --y 360 </parameters>
+        <name>gazeEvaluator</name>
         <node>localhost</node>
         <stdio></stdio>
-        <tag>yarpview</tag>
+        <tag>gazeEvaluator</tag>
     </module>
     <module>
-        <name>yarpview</name>
-        <parameters>/chessEyeTestDisp</parameters>
+        <name>gazeStabilizer</name>
         <node>localhost</node>
         <stdio></stdio>
-        <tag>yarpview</tag>
+        <tag>gazeStabilizer</tag>
     </module>
     <module>
-        <name>chessEyeTest</name>
-        <parameters>--from chessEyeTest.ini</parameters>
+        <name>torsoController</name>
         <node>localhost</node>
         <stdio></stdio>
-        <tag>chessEyeTest</tag>
+        <tag>torsoController</tag>
     </module>
     
     <connection>
         <from>/icub/camcalib/left/out</from>
-        <to>/chessEyeTest/imgL:i</to>
+        <to>/gazeEvaluator/img:i</to>
         <protocol>udp</protocol>
     </connection>
     <connection>
-        <from>/icub/camcalib/right/out</from>
-        <to>/chessEyeTest/imgR:i</to>
-        <protocol>udp</protocol>
-    </connection>
-    <connection>
-        <from>/chessEyeTest/imgR:o</from>
-        <to>/chessEyeTestInR</to>
-        <protocol>udp</protocol>
-    </connection>
-    <connection>
-        <from>/chessEyeTest/imgL:o</from>
-        <to>/chessEyeTestInL</to>
+        <from>/gazeEvaluator/img:o</from>
+        <to>/gazeEval</to>
         <protocol>udp</protocol>
     </connection>
 
