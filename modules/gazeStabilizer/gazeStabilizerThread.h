@@ -105,10 +105,14 @@ protected:
     Bottle                *inIMUBottle;  // bottle used for the port
 
     /**
-    * Updates a kinematic chain belonging to an eye. It can be either an iCubEye, 
-    * or an iCubHeadCenter.
+    * Updates a kinematic chain belonging to an eye.
     **/
     void updateEyeChain(iKinChain &_eye, const string _eyeType);
+
+    /**
+    * Updates a kinematic chain belonging to the neck.
+    **/
+    void updateNeckChain(iKinChain &_neck);
 
     /**
     * Updates the iCubInertialSensor kinematic chain. Not that useful, though

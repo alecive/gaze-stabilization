@@ -17,13 +17,19 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string _name, string _robo
     neck = new iCubHeadCenter("right_v2");
     IMU  = new iCubInertialSensor("v2");
 
-    isRunning = false;
+    eyeL -> setAllConstraints(false);
+    eyeR -> setAllConstraints(false);
+    neck -> setAllConstraints(false);
+    IMU  -> setAllConstraints(false);
+
+    // block neck dofs
+    eyeL->blockLink(3,0.0); eyeR->blockLink(3,0.0);
+    eyeL->blockLink(4,0.0); eyeR->blockLink(4,0.0);
+    eyeL->blockLink(5,0.0); eyeR->blockLink(5,0.0);
 
     // Release torso links
     for (int i = 0; i < 3; i++)
     {
-        eyeL -> releaseLink(i);
-        eyeR -> releaseLink(i);
         neck -> releaseLink(i);
         IMU  -> releaseLink(i);
     }
@@ -40,6 +46,8 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string _name, string _robo
     xFP_R.resize(3,0.0);
     J_E.resize(3,3);
     J_E.zero();
+
+    isRunning = false;
 }
 
 bool gazeStabilizerThread::threadInit()
@@ -143,19 +151,19 @@ void gazeStabilizerThread::run()
         // 2 - Update the iCubHeadCenter, eyeR and eyeL with those values
         updateEyeChain(*chainEyeL,"left");
         updateEyeChain(*chainEyeR,"right");
-        updateEyeChain(*chainNeck,"right");
+        updateNeckChain(*chainNeck);
         updateIMUChain(*chainIMU);
-        printMessage(2,"EyeL: %s\n",(CTRL_RAD2DEG*(eyeL->getAng())).toString().c_str());
-        printMessage(2,"EyeR: %s\n",(CTRL_RAD2DEG*(eyeR->getAng())).toString().c_str());
-        printMessage(2,"Neck: %s\n",(CTRL_RAD2DEG*(neck->getAng())).toString().c_str());
-        printMessage(2,"IMU:  %s\n",(CTRL_RAD2DEG*(IMU ->getAng())).toString().c_str());
+        printMessage(1,"EyeL: %s\n",(CTRL_RAD2DEG*(eyeL->getAng())).toString(3,3).c_str());
+        printMessage(1,"EyeR: %s\n",(CTRL_RAD2DEG*(eyeR->getAng())).toString(3,3).c_str());
+        printMessage(2,"Neck: %s\n",(CTRL_RAD2DEG*(neck->getAng())).toString(3,3).c_str());
+        printMessage(2,"IMU:  %s\n",(CTRL_RAD2DEG*(IMU ->getAng())).toString(3,3).c_str());
 
 
         // 3 - Compute Fixation Point Data (x_FP and J_E)
         if (CartesianHelper::computeFixationPointData(*chainEyeL,*chainEyeR,xFP_R,J_E))
         {
-            printMessage(1,"xFP_R:\t%s\n", xFP_R.toString().c_str());
-            printMessage(1,"J_E:\n%s\n\n",   J_E.toString().c_str());
+            printMessage(1,"xFP_R:\t%s\n", xFP_R.toString(3,3).c_str());
+            printMessage(1,"J_E:\n%s\n\n",   J_E.toString(3,3).c_str());
 
             // At this point, compute the source-dependent tasks
             if (src_mode == "torso")
@@ -166,6 +174,10 @@ void gazeStabilizerThread::run()
             {
                 run_inertialMode();
             }
+        }
+        else
+        {
+            printMessage(0,"computeFixationPointData() returned false!\n");
         }
     }
 }
@@ -218,12 +230,15 @@ void gazeStabilizerThread::run_inertialMode()
             vor_fprelv=CTRL_DEG2RAD*(gyrX*cross(H,0,H,3)+gyrY*cross(H,1,H,3)+gyrZ*cross(H,2,H,3));
 
         Matrix J_E_pinv = pinv(J_E);
-        printMessage(1,"J_E_pinv:\n%s\n",J_E_pinv.toString().c_str());
-        Vector dq_E = CTRL_RAD2DEG * 1.0 * (J_E_pinv*vor_fprelv);
-        printMessage(0,"dq_E:\t%s\n", dq_E.toString().c_str());
+        Vector dq_E = -CTRL_RAD2DEG * (J_E_pinv*vor_fprelv);
+        printMessage(0,"dq_E:\t%s\n", dq_E.toString(3,3).c_str());
 
         // 9 - Send dq_E
         moveEyes(dq_E);
+    }
+    else
+    {
+        printMessage(0,"No signal from the IMU!\n");
     }
 }
 
@@ -256,7 +271,7 @@ void gazeStabilizerThread::run_torsoMode()
         xFP_R.push_back(1);
         Vector xFP_E = SE3inv(H_RE) * xFP_R;
         xFP_R.pop_back();
-        printMessage(1,"xFP_E:\t%s\n", xFP_E.toString().c_str());
+        printMessage(1,"xFP_E:\t%s\n", xFP_E.toString(3,3).c_str());
 
         // 6 - SetHN() with xFP_E
         Matrix HN = eye(4);
@@ -267,15 +282,14 @@ void gazeStabilizerThread::run_torsoMode()
 
         // 7 - Compute dx_FP = J_TH * [dq_T ; dq_H]
         Matrix J_TH = chainNeck -> GeoJacobian();
-        printMessage(1,"J_TH:\n%s\n",J_TH.toString().c_str());
+        printMessage(1,"J_TH:\n%s\n",J_TH.toString(3,3).c_str());
         Vector dx_FP = J_TH * dq;
-        printMessage(1,"dx_FP:\t%s\n", dx_FP.toString().c_str());
+        printMessage(1,"dx_FP:\t%s\n", dx_FP.toString(3,3).c_str());
 
         // 8 - Compute dq_E  = J_E+ * dx_FP;
         Matrix J_E_pinv = pinv(J_E);
-        printMessage(1,"J_E_pinv:\n%s\n",J_E_pinv.toString().c_str());
-        Vector dq_E = CTRL_RAD2DEG * (J_E_pinv * dx_FP.subVector(0,2));
-        printMessage(0,"dq_E:\t%s\n", dq_E.toString().c_str());
+        Vector dq_E = -CTRL_RAD2DEG * (J_E_pinv * dx_FP.subVector(0,2));
+        printMessage(0,"dq_E:\t%s\n", dq_E.toString(3,3).c_str());
 
         // 9 - Send dq_E
         moveEyes(dq_E);
@@ -286,6 +300,8 @@ bool gazeStabilizerThread::moveEyes(const Vector &_dq_E)
 {
     // if (norm(_dq_E) < 100)
     // {
+        printMessage(1,"Moving eyes to: %s\n",_dq_E.toString(3,3).c_str());
+
         std::vector<int> Ejoints;  // indexes of the joints to control
         Ejoints.push_back(3);
         Ejoints.push_back(4);
@@ -322,6 +338,15 @@ void gazeStabilizerThread::updateEyeChain(iKinChain &_eye, const string _eyeType
     yarp::sig::Vector torso = *encsT;
     yarp::sig::Vector  head = *encsH;
 
+    _eye.setBlockingValue(0,CTRL_DEG2RAD*torso[2]);
+    _eye.setBlockingValue(1,CTRL_DEG2RAD*torso[1]);
+    _eye.setBlockingValue(2,CTRL_DEG2RAD*torso[0]);
+    _eye.setBlockingValue(3,CTRL_DEG2RAD*head[0]);
+    _eye.setBlockingValue(4,CTRL_DEG2RAD*head[1]);
+    _eye.setBlockingValue(5,CTRL_DEG2RAD*head[2]);
+
+    _eye.setAng(6,CTRL_DEG2RAD*head[3]);
+
     // CHANGE THIS: Avoid going low with the vergence
     // (this value is empyrical, but it is what the gaze controller is doing internally)
     if (head[5] < 1.0)
@@ -331,17 +356,23 @@ void gazeStabilizerThread::updateEyeChain(iKinChain &_eye, const string _eyeType
                  _eyeType == "left"    ||
                  _eyeType == "left_v1");
 
-    yarp::sig::Vector q(8);
-    q[0] = torso[2];   q[1] = torso[1];    q[2] = torso[0];
-    q[3] = head[0];    q[4] = head[1];
-    q[5] = head[2];    q[6] = head[3];
     if (isLeft)
-        q[7] = head[4]+head[5]/2.0;
+        _eye.setAng(7,CTRL_DEG2RAD*(head[4]+head[5]/2.0));
     else
-        q[7] = head[4]-head[5]/2.0;
-    q = CTRL_DEG2RAD*q;
+        _eye.setAng(7,CTRL_DEG2RAD*(head[4]-head[5]/2.0));
+}
 
-    _eye.setAng(q);
+void gazeStabilizerThread::updateNeckChain(iKinChain &_neck)
+{
+    yarp::sig::Vector torso = *encsT;
+    yarp::sig::Vector  head = *encsH;
+
+    yarp::sig::Vector q(8,0.0);
+    q[0] = torso[2];   q[1] = torso[1];   q[2] = torso[0];
+    q[3] = head[0];    q[4] = head[1];    q[5] = head[2];
+
+    q = CTRL_DEG2RAD*q;
+    _neck.setAng(q);
 }
 
 void gazeStabilizerThread::updateIMUChain(iKinChain &_imu)
@@ -350,8 +381,12 @@ void gazeStabilizerThread::updateIMUChain(iKinChain &_imu)
     yarp::sig::Vector  head = *encsH;
 
     yarp::sig::Vector q(6);
-    q[0] = torso[2];   q[1] = torso[1];    q[2] = torso[0];
-    q[3] =  head[0];   q[4] =  head[1];    q[5] =  head[2];
+    q[0] = torso[2];
+    q[1] = torso[1];
+    q[2] = torso[0];
+    q[3] =  head[0];
+    q[4] =  head[1];
+    q[5] =  head[2];
 
     q = CTRL_DEG2RAD*q;
     _imu.setAng(q);
