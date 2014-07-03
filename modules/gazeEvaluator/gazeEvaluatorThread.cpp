@@ -175,13 +175,13 @@ void gazeEvaluatorThread::sendOptFlow()
     IplImage* imgOptFlowModule=cvCreateImage(cvSize(imgInPrev->width,imgInPrev->height),8,3);
     drawFlowModule(imgOptFlowModule);
 
-    if(imgOptFlow!=NULL)
+    if(imgOptFlowModule!=NULL)
     {
-        printMessage(0,"I've got an optical flow!\n");
+        printMessage(0,"I've got an optical flow Module!\n");
 
         ImageOf<PixelBgr>& outim = imagePortOutNorm->prepare();
 
-        printMessage(0,"imgOptFlow depth %i\n",imgOptFlowModule->depth);
+        printMessage(0,"imgOptFlowModule depth %i\n",imgOptFlowModule->depth);
         outim.wrapIplImage(imgOptFlowModule);
 
         imagePortOutNorm->write();
