@@ -149,9 +149,9 @@ class gazeEvaluator: public RFModule
         bool configure(ResourceFinder &rf)
         {
             string name      = "gazeEvaluator";
-            string robot     = "icub";
-            int    verbosity =      0;     // verbosity
-            int    rate      =    100;     // rate of the gazeEvaluatorThread
+            string robot     =          "icub";
+            int    verbosity =               0;     // verbosity
+            int    rate      =              20;     // rate of the gazeEvaluatorThread
 
             //******************* NAME ******************
                 if (rf.check("name"))

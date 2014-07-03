@@ -52,6 +52,8 @@ using namespace yarp::math;
 using namespace iCub::iKin;
 using namespace iCub::ctrl;
 
+using namespace cv;
+
 using namespace std;
 
 class gazeEvaluatorThread: public RateThread
@@ -64,12 +66,24 @@ protected:
     string robot;       // Name of the robot (to address both icub and icubSim)
 
     BufferedPort<ImageOf<PixelRgb> > *imagePortIn;
-    BufferedPort<ImageOf<PixelRgb> > *imagePortOut;
+    BufferedPort<ImageOf<PixelBgr> > *imagePortOut;
+
+    yarp::sig::ImageOf<yarp::sig::PixelRgb>* imageIn;
 
     // Internal matrices and variables
+    bool isStarting;
+
     cv::Mat optFlow;
-    cv::Mat imPrev;
-    cv::Mat imNext;
+    cv::Mat imgPrev;
+    cv::Mat imgNext;
+    IplImage* imgInNext;
+    IplImage* imgInPrev;
+
+    void setImages(Mat &_prev, Mat &_next); 
+
+    void sendOptFlow();
+
+    IplImage* draw2DMotionField();
 
     /**
     * Prints a message according to the verbosity level:
