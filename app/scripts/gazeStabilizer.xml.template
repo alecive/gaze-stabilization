@@ -45,7 +45,7 @@
         <protocol>udp</protocol>
     </connection>
     <connection>
-        <from>/gazeEvaluator/optFModule:o</from>
+        <from>/gazeEvaluator/optFlowModule:o</from>
         <to>/gazeEvalModule</to>
         <protocol>udp</protocol>
     </connection>
