@@ -1,0 +1,56 @@
+<application>
+    <name>gazeStabilizerDumper</name>
+
+    <dependencies>
+    </dependencies>
+
+    <module>
+        <name>dataDumper</name>
+        <parameters>--name /gs/left/out --type image --rxTime</parameters>
+        <node>icub13</node>
+        <stdio></stdio>
+        <tag>gsLeftOut</tag>
+    </module>
+    <module>
+        <name>dataDumper</name>
+        <parameters>--name /gs/flow --type image --rxTime</parameters>
+        <node>icub13</node>
+        <stdio></stdio>
+        <tag>gsFlow</tag>
+    </module>
+    <module>
+        <name>dataDumper</name>
+        <parameters>--name /gs/flowModule --type image --rxTime</parameters>
+        <node>icub13</node>
+        <stdio></stdio>
+        <tag>gsFlowModule</tag>
+    </module>
+    <module>
+        <name>dataDumper</name>
+        <parameters>--name /gs/flowModuleAvg --rxTime</parameters>
+        <node>icub13</node>
+        <stdio></stdio>
+        <tag>gsFlowModuleAvg</tag>
+    </module>
+
+    <connection>
+        <from>/icub/camcalib/left/out</from>
+        <to>/gs/left/out</to>
+        <protocol>tcp</protocol>
+    </connection>
+    <connection>
+        <from>/gazeEvaluator/optFlow:o</from>
+        <to>/gs/flow</to>
+        <protocol>tcp</protocol>
+    </connection>
+    <connection>
+        <from>/gazeEvaluator/optFlowModule:o</from>
+        <to>/gs/flowModule</to>
+        <protocol>tcp</protocol>
+    </connection>
+    <connection>
+        <from>/gazeEvaluator/optFlowModuleAvg:o</from>
+        <to>/gs/flowModuleAvg</to>
+        <protocol>tcp</protocol>
+    </connection>
+</application>
