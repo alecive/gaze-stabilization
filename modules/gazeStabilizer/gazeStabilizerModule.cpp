@@ -164,6 +164,31 @@ class gazeStabilizer: public RFModule
                         reply.addVocab(res);
                         return true;
                     }
+                    case VOCAB3('s','e','t'):
+                    {
+                        if (command.get(1).asString() == "if_mode")
+                        {
+                            if (gazeStabilizerThrd -> set_if_mode(command.get(2).asString()))
+                            {
+                                reply.addVocab(ack);
+                            }
+                            else
+                                reply.addVocab(nack);
+                        }
+                        else if (command.get(1).asString() == "src_mode")
+                        {
+                            if (gazeStabilizerThrd -> set_src_mode(command.get(2).asString()))
+                            {
+                                reply.addVocab(ack);
+                            }
+                            else
+                                reply.addVocab(nack);
+                        }
+                        else
+                            reply.addVocab(nack);
+
+                        return true;
+                    }
                     //-----------------
                     default:
                         return RFModule::respond(command,reply);
@@ -177,11 +202,11 @@ class gazeStabilizer: public RFModule
         bool configure(ResourceFinder &rf)
         {
             string name      = "gazeStabilizer";
-            string robot     = "icub";
-            int    verbosity =      0;     // verbosity
-            int    rate      =     10;     // rate of the gazeStabilizerThread
-            string if_mode   = "vel2";     // it can be either vel1 or vel2
-            string src_mode  = "torso";    // it can be either torso or inertial
+            string robot     =           "icub";
+            int    verbosity =                0; // verbosity
+            int    rate      =               10; // rate of the gazeStabilizerThread
+            string if_mode   =           "vel2"; // it can be either vel1 or vel2
+            string src_mode  =       "inertial"; // it can be either torso or inertial
 
 
             //******************* NAME ******************

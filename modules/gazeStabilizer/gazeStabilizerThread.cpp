@@ -185,6 +185,26 @@ void gazeStabilizerThread::run()
     }
 }
 
+bool gazeStabilizerThread::set_if_mode(const string &_ifm)
+{
+    if (_ifm == "vel1" || _ifm == "vel2")
+    {
+        if_mode = _ifm;
+        return true;
+    }
+    return false;
+}
+
+bool gazeStabilizerThread::set_src_mode(const string &_srcm)
+{
+    if (_srcm == "torso" || _srcm == "inertial")
+    {
+        src_mode = _srcm;
+        return true;
+    }
+    return false;
+}
+
 bool gazeStabilizerThread::startStabilization()
 {
     isRunning = true;

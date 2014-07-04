@@ -144,8 +144,10 @@ public:
     virtual void run();
     // RELEASE
     virtual void threadRelease();
-
     // START AND STOP THE STABILIZATION
     bool startStabilization();
     bool  stopStabilization();
+    // SET IF_MODE AND SRC_MODE ON THE FLY
+    bool set_if_mode();
+    bool set_src_mode();
 };
