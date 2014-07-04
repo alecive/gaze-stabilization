@@ -21,6 +21,7 @@ find_package(OpenCV)
 
 include_directories(${YARP_INCLUDE_DIRS})
 include_directories(${OpenCV_INCLUDE_DIRS})
+include_directories(${ICUB_INCLUDE_DIRS})
 
 include(YarpInstallationHelpers)   # pick up yarp's cmake scripts
 
