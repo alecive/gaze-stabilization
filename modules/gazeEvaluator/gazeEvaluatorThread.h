@@ -65,9 +65,9 @@ protected:
     string name;        // Name of the module (to change port names accordingly)  
     string robot;       // Name of the robot (to address both icub and icubSim)
 
-    BufferedPort<ImageOf<PixelRgb> > *imagePortIn;
-    BufferedPort<ImageOf<PixelBgr> > *imagePortOutFlow;
-    Port imagePortOutNorm;
+    BufferedPort<ImageOf<PixelRgb> > *imgPortIn;
+    Port imgPortOutFlow;
+    Port imgPortOutModule;
 
     yarp::sig::ImageOf<yarp::sig::PixelRgb>* imageIn;
 

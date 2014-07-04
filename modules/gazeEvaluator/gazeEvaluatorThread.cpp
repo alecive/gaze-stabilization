@@ -10,19 +10,17 @@
 gazeEvaluatorThread::gazeEvaluatorThread(int _rate, string _name, string _robot, int _v) :
                                            RateThread(_rate), name(_name), robot(_robot), verbosity(_v)
 {
-    imagePortIn  = new BufferedPort<ImageOf<PixelRgb> >;
-    imagePortOutFlow = new BufferedPort<ImageOf<PixelBgr> >;
-
-    imageIn=new ImageOf<PixelRgb>;
+    imgPortIn = new BufferedPort<ImageOf<PixelRgb> >;
+    imageIn   = new ImageOf<PixelRgb>;
 
     isStarting = 1;
 }
 
 bool gazeEvaluatorThread::threadInit()
 {
-    imagePortIn  -> open(("/"+name+"/img:i").c_str());
-    imagePortOutFlow -> open(("/"+name+"/optFlow:o").c_str());
-    imagePortOutNorm.open(("/"+name+"/optFModule:o").c_str());
+    imgPortIn  -> open(("/"+name+"/img:i").c_str());
+    imgPortOutFlow.open(("/"+name+"/optFlow:o").c_str());
+    imgPortOutModule.open(("/"+name+"/optFlowModule:o").c_str());
 
     return true;
 }
@@ -31,7 +29,7 @@ void gazeEvaluatorThread::run()
 {
     if (isStarting)
     {
-        ImageOf<PixelRgb> *tmp = imagePortIn->read(false);
+        ImageOf<PixelRgb> *tmp = imgPortIn->read(false);
 
         if(tmp!=NULL)
         {
@@ -45,7 +43,7 @@ void gazeEvaluatorThread::run()
     else
     {
         // 1  - Get the image
-        ImageOf<PixelRgb> *tmp = imagePortIn->read(false);
+        ImageOf<PixelRgb> *tmp = imgPortIn->read(false);
         if(tmp!=NULL)
         {
             *imageIn=*tmp;
@@ -160,13 +158,10 @@ void gazeEvaluatorThread::sendOptFlow()
     if(imgOptFlow!=NULL)
     {
         printMessage(0,"I've got an optical flow!\n");
-
-        ImageOf<PixelBgr>& outim = imagePortOutFlow->prepare();
-
-        printMessage(0,"imgOptFlow depth %i\n",imgOptFlow->depth);
+        printMessage(1,"imgOptFlow depth %i\n",imgOptFlow->depth);
+        ImageOf<PixelBgr> outim;
         outim.wrapIplImage(imgOptFlow);
-
-        imagePortOutFlow->write();
+        imgPortOutFlow.write(outim);
     }
 
     cvReleaseImage(&imgOptFlow);
@@ -176,14 +171,11 @@ void gazeEvaluatorThread::sendOptFlow()
 
     if(imgOptFlowModule!=NULL)
     {
-        printMessage(0,"I've got an optical flow Module!\n");
-
+        printMessage(0,"I've got an optical flow Module!\n");      
+        printMessage(1,"imgOptFlowModule depth %i\n",imgOptFlowModule->depth);
         ImageOf<PixelBgr> outim;
-        
-        printMessage(0,"imgOptFlowModule depth %i\n",imgOptFlowModule->depth);
         outim.wrapIplImage(imgOptFlowModule);
-
-        imagePortOutNorm.write(outim);
+        imgPortOutModule.write(outim);
     }
 
     cvReleaseImage(&imgOptFlowModule);
@@ -227,8 +219,7 @@ void gazeEvaluatorThread::closePort(Contactable *_port)
 void gazeEvaluatorThread::threadRelease()
 {
     printMessage(0,"Closing ports...\n");
-        imagePortIn  -> close();
-        imagePortOutFlow -> close();
+        imgPortIn  -> close();
 }
 
 // empty line to make gcc happy
