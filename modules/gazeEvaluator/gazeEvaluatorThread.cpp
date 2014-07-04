@@ -54,7 +54,7 @@ void gazeEvaluatorThread::run()
         imgInNext = (IplImage*) imageIn->getIplImage();
 
         // 2B - Smooth it out
-        // cvSmooth(imgInNext, imgInNext, CV_GAUSSIAN, 3, 0, 0, 0);
+        cvSmooth(imgInNext, imgInNext, CV_GAUSSIAN, 3, 0, 0, 0);
 
         // 3  - Set the new image
         Mat tmpPrev(imgInPrev);
