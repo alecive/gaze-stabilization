@@ -67,7 +67,7 @@ protected:
 
     BufferedPort<ImageOf<PixelRgb> > *imagePortIn;
     BufferedPort<ImageOf<PixelBgr> > *imagePortOutFlow;
-    BufferedPort<ImageOf<PixelBgr> > *imagePortOutNorm;
+    Port imagePortOutNorm;
 
     yarp::sig::ImageOf<yarp::sig::PixelRgb>* imageIn;
 
