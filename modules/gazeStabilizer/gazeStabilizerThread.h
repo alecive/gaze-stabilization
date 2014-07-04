@@ -148,6 +148,6 @@ public:
     bool startStabilization();
     bool  stopStabilization();
     // SET IF_MODE AND SRC_MODE ON THE FLY
-    bool set_if_mode();
-    bool set_src_mode();
+    bool set_if_mode(const string &_ifm);
+    bool set_src_mode(const string &_srcm);
 };
