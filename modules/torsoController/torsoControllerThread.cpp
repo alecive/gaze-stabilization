@@ -190,49 +190,6 @@ void torsoControllerThread::run()
             printMessage(1,"Finished.\n");
             break;
     }
-
-    // if (cmdcnt == -2)   // put torso in 0 0 0 (positionMove)
-    // {
-    //     printMessage(0,"Putting torso in home position..\n");
-    //     Vector pos0(3,0.0);
-    //     iposT -> positionMove(pos0.data());
-    //     printMessage(0,"Starting stabilization..\n");
-    //     gateStabilization("start");
-    //     timeNow = yarp::os::Time::now();
-    //     cmdcnt +=1;
-    // }
-    // else if (cmdcnt == -1)
-    // {
-    //     if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
-    //     {
-    //         timeNow = yarp::os::Time::now();
-    //         cmdcnt += 1;
-    //         printMessage(0,"Sending command #%i: %s\n",cmdcnt,
-    //                         ctrlCommands[cmdcnt].toString().c_str());
-    //     }
-    // }
-    // else if (cmdcnt < ctrlCommands.size())
-    // {
-    //     ivelT -> velocityMove(ctrlCommands[cmdcnt].data());
-    //     sendCommand();
-
-    //     if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
-    //     {
-    //         timeNow = yarp::os::Time::now();
-    //         cmdcnt += 1;
-    //         printMessage(0,"Sending command #%i: %s\n",cmdcnt,
-    //                         ctrlCommands[cmdcnt].toString().c_str());
-    //     }
-    // }
-    // else
-    // {
-    //     if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
-    //     {
-    //         timeNow = yarp::os::Time::now();
-    //         printMessage(0,"Finished. Stopping stabilization..\n");
-    //         gateStabilization("stop");
-    //     }
-    // }
 }
 
 bool torsoControllerThread::processWayPoint()
@@ -287,13 +244,14 @@ bool torsoControllerThread::processWayPoint()
 
 bool torsoControllerThread::redoCycle()
 {
-    if (cmdcnt < ctrlCommands.size())
+    if (step <= 4)
     {
-        return false; // it means that it didn't finish this cycle yet
+        return false; // it means that it didn't finish its cycle yet
     }
     else
     {
-        cmdcnt = -2;
+        step            = 0;
+        currentWaypoint = 0;
         return true;
     }
     return true;
