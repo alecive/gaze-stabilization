@@ -153,6 +153,7 @@ void gazeEvaluatorThread::drawFlowModule(IplImage* imgMotion)
 
 void gazeEvaluatorThread::sendOptFlow()
 {
+    // Send the optical flow as a superimposition of the input image
     IplImage* imgOptFlow = (IplImage*)draw2DMotionField();
 
     if(imgOptFlow!=NULL)
@@ -163,9 +164,9 @@ void gazeEvaluatorThread::sendOptFlow()
         outim.wrapIplImage(imgOptFlow);
         imgPortOutFlow.write(outim);
     }
-
     cvReleaseImage(&imgOptFlow);
 
+    // Send the pixel-by-pixel norm of the optical flow in a standalone port
     IplImage* imgOptFlowModule=cvCreateImage(cvSize(imgInPrev->width,imgInPrev->height),8,3);
     drawFlowModule(imgOptFlowModule);
 
@@ -176,6 +177,21 @@ void gazeEvaluatorThread::sendOptFlow()
         ImageOf<PixelBgr> outim;
         outim.wrapIplImage(imgOptFlowModule);
         imgPortOutModule.write(outim);
+
+        // Compute the average value of the optical flow and send it into another port
+        double sum = 0;
+        double avg = 0;
+        double cnt = 0;
+
+        for (int i = 0; i < imgOptFlowModule->width; i++)
+        {
+            for (int j = 0; j < imgOptFlowModule->height; j++)
+            {
+                sum = sum + imgOptFlowModule[i,j];
+                cnt++;
+            }
+        }
+        avg = sum/cnt;
     }
 
     cvReleaseImage(&imgOptFlowModule);
