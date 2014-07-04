@@ -6,6 +6,7 @@
 #include <iomanip>
 
 #define GYRO_BIAS_STABILITY                 5.0     // [deg/s]
+#define PIXELS_TO_DISCARD                  20.0
 
 gazeEvaluatorThread::gazeEvaluatorThread(int _rate, string _name, string _robot, int _v) :
                                            RateThread(_rate), name(_name), robot(_robot), verbosity(_v)
@@ -19,8 +20,9 @@ gazeEvaluatorThread::gazeEvaluatorThread(int _rate, string _name, string _robot,
 bool gazeEvaluatorThread::threadInit()
 {
     imgPortIn  -> open(("/"+name+"/img:i").c_str());
-    imgPortOutFlow.open(("/"+name+"/optFlow:o").c_str());
-    imgPortOutModule.open(("/"+name+"/optFlowModule:o").c_str());
+    imgOutportFlow.open(("/"+name+"/optFlow:o").c_str());
+    imgOutportModule.open(("/"+name+"/optFlowModule:o").c_str());
+    outPortModuleAvg.open(("/"+name+"/optFlowModuleAvg:o").c_str());
 
     return true;
 }
@@ -160,9 +162,9 @@ void gazeEvaluatorThread::sendOptFlow()
     {
         printMessage(0,"I've got an optical flow!\n");
         printMessage(1,"imgOptFlow depth %i\n",imgOptFlow->depth);
-        ImageOf<PixelBgr> outim;
+        ImageOf<PixelRgb> outim;
         outim.wrapIplImage(imgOptFlow);
-        imgPortOutFlow.write(outim);
+        imgOutportFlow.write(outim);
     }
     cvReleaseImage(&imgOptFlow);
 
@@ -176,22 +178,30 @@ void gazeEvaluatorThread::sendOptFlow()
         printMessage(1,"imgOptFlowModule depth %i\n",imgOptFlowModule->depth);
         ImageOf<PixelBgr> outim;
         outim.wrapIplImage(imgOptFlowModule);
-        imgPortOutModule.write(outim);
+        imgOutportModule.write(outim);
 
         // Compute the average value of the optical flow and send it into another port
         double sum = 0;
         double avg = 0;
         double cnt = 0;
 
-        for (int i = 0; i < imgOptFlowModule->width; i++)
+        for( int row = PIXELS_TO_DISCARD; row < imgOptFlowModule->height - PIXELS_TO_DISCARD; row++ )
         {
-            for (int j = 0; j < imgOptFlowModule->height; j++)
+            for ( int col = PIXELS_TO_DISCARD; col < imgOptFlowModule->width - PIXELS_TO_DISCARD; col++ )
             {
-                sum = sum + imgOptFlowModule[i,j];
+                // Just take only one channel (they're all the same)
+                sum += imgOptFlowModule->imageData[imgOptFlowModule->widthStep * row + col * 3];
                 cnt++;
             }
         }
         avg = sum/cnt;
+
+        Bottle b;
+        b.clear();
+        // b.addDouble(cnt);
+        // b.addDouble(sum);
+        b.addDouble(avg);
+        outPortModuleAvg.write(b);
     }
 
     cvReleaseImage(&imgOptFlowModule);

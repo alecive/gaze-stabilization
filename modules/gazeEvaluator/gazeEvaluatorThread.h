@@ -66,8 +66,9 @@ protected:
     string robot;       // Name of the robot (to address both icub and icubSim)
 
     BufferedPort<ImageOf<PixelRgb> > *imgPortIn;
-    Port imgPortOutFlow;
-    Port imgPortOutModule;
+    Port imgOutportFlow;
+    Port imgOutportModule;
+    Port outPortModuleAvg;
 
     yarp::sig::ImageOf<yarp::sig::PixelRgb>* imageIn;
 
