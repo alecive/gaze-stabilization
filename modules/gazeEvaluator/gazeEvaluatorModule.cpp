@@ -200,8 +200,6 @@ class gazeEvaluator: public RFModule
                 }
                 cout << "GAZE EVALUATOR: gazeEvaluatorThread istantiated...\n";
 
-
-            //******************************************************
             //************************ PORTS ***********************
                 rpcSrvr.open(("/"+name+"/rpc:i").c_str());
                 attach(rpcSrvr);

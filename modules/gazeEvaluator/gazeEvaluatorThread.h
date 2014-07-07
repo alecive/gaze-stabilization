@@ -85,7 +85,7 @@ protected:
 
     void sendOptFlow();
 
-    IplImage* draw2DMotionField();
+    IplImage* draw2DMotionField(double &_avg);
     void drawFlowModule(IplImage* imgMotion);
 
     /**

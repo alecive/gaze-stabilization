@@ -29,6 +29,9 @@ bool gazeEvaluatorThread::threadInit()
 
 void gazeEvaluatorThread::run()
 {
+    if(!optFlow.empty())
+        optFlow.setTo(Scalar(0));
+
     if (isStarting)
     {
         ImageOf<PixelRgb> *tmp = imgPortIn->read(false);
@@ -83,7 +86,7 @@ void gazeEvaluatorThread::run()
     }
 }
 
-IplImage* gazeEvaluatorThread::draw2DMotionField()
+IplImage* gazeEvaluatorThread::draw2DMotionField(double &_avg)
 {
     int xSpace=7;
     int ySpace=7;
@@ -97,6 +100,8 @@ IplImage* gazeEvaluatorThread::draw2DMotionField()
     IplImage* imgMotion=(IplImage*) cvClone(imgInPrev);
 
     float deltaX, deltaY, angle, hyp;
+    float sum = 0;
+    float cnt = 0;
 
     for(int i=0; i<optFlow.rows; i+=5) 
     {
@@ -108,6 +113,13 @@ IplImage* gazeEvaluatorThread::draw2DMotionField()
             deltaY = -optFlow.ptr<float>(i)[2*j+1];
             angle = atan2(deltaY, deltaX);
             hyp = sqrt(deltaX*deltaX + deltaY*deltaY);
+            if (hyp > 1e-1 && 
+                i > PIXELS_TO_DISCARD && i < optFlow.rows - PIXELS_TO_DISCARD &&
+                j > PIXELS_TO_DISCARD && j < optFlow.cols - PIXELS_TO_DISCARD)
+            {
+                sum = sum + hyp;
+                cnt++;
+            }
 
             if(hyp > cutoff)
             {
@@ -123,6 +135,10 @@ IplImage* gazeEvaluatorThread::draw2DMotionField()
                 cvLine( imgMotion, p0, p1, color,1, CV_AA, 0);
             }
         }
+    }
+    if (cnt!=0)
+    {
+        _avg = sum/cnt;
     }
 
     return imgMotion;
@@ -156,12 +172,20 @@ void gazeEvaluatorThread::drawFlowModule(IplImage* imgMotion)
 void gazeEvaluatorThread::sendOptFlow()
 {
     // Send the optical flow as a superimposition of the input image
-    IplImage* imgOptFlow = (IplImage*)draw2DMotionField();
+    double avg = 0;
+    IplImage* imgOptFlow = (IplImage*)draw2DMotionField(avg);
+
+    Bottle b;
+    b.clear();
+    // b.addDouble(cnt);
+    // b.addDouble(sum);
+    b.addDouble(avg);
+    outPortModuleAvg.write(b);
 
     if(imgOptFlow!=NULL)
     {
-        printMessage(0,"I've got an optical flow!\n");
-        printMessage(1,"imgOptFlow depth %i\n",imgOptFlow->depth);
+        printMessage(0,"I've got an optical flow! Avg: %g\n",avg);
+        printMessage(2,"imgOptFlow depth %i\n",imgOptFlow->depth);
         ImageOf<PixelRgb> outim;
         outim.wrapIplImage(imgOptFlow);
         imgOutportFlow.write(outim);
@@ -174,34 +198,10 @@ void gazeEvaluatorThread::sendOptFlow()
 
     if(imgOptFlowModule!=NULL)
     {
-        printMessage(0,"I've got an optical flow Module!\n");      
         printMessage(1,"imgOptFlowModule depth %i\n",imgOptFlowModule->depth);
         ImageOf<PixelBgr> outim;
         outim.wrapIplImage(imgOptFlowModule);
         imgOutportModule.write(outim);
-
-        // Compute the average value of the optical flow and send it into another port
-        double sum = 0;
-        double avg = 0;
-        double cnt = 0;
-
-        for( int row = PIXELS_TO_DISCARD; row < imgOptFlowModule->height - PIXELS_TO_DISCARD; row++ )
-        {
-            for ( int col = PIXELS_TO_DISCARD; col < imgOptFlowModule->width - PIXELS_TO_DISCARD; col++ )
-            {
-                // Just take only one channel (they're all the same)
-                sum += imgOptFlowModule->imageData[imgOptFlowModule->widthStep * row + col * 3];
-                cnt++;
-            }
-        }
-        avg = sum/cnt;
-
-        Bottle b;
-        b.clear();
-        // b.addDouble(cnt);
-        // b.addDouble(sum);
-        b.addDouble(avg);
-        outPortModuleAvg.write(b);
     }
 
     cvReleaseImage(&imgOptFlowModule);
