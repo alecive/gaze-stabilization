@@ -41,7 +41,8 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string _name, string _robo
     chainIMU  = IMU  -> asChain();
 
     inTorsoPort = new BufferedPort<Bottle>;
-    inIMUPort = new BufferedPort<Bottle>;
+    inIMUPort   = new BufferedPort<Bottle>;
+    inWBPort    = new BufferedPort<Bottle>;
 
     xFP_R.resize(3,0.0);
     J_E.resize(3,3);
@@ -54,6 +55,7 @@ bool gazeStabilizerThread::threadInit()
 {
     inTorsoPort -> open(("/"+name+"/torsoController:i").c_str());
     inIMUPort   -> open(("/"+name+"/inertial:i").c_str());
+    inIMUPort   -> open(("/"+name+"/wholeBody:i").c_str());
 
     Network::connect("/torsoController/gazeStabilizer:o",("/"+name+"/torsoController:i").c_str());
     Network::connect(("/"+robot+"/inertial").c_str(),("/"+name+"/inertial:i").c_str());
@@ -168,15 +170,24 @@ void gazeStabilizerThread::run()
             printMessage(1,"xFP_R:\t%s\n", xFP_R.toString(3,3).c_str());
             printMessage(1,"J_E:\n%s\n\n",   J_E.toString(3,3).c_str());
 
-            // At this point, compute the source-dependent tasks
+            // At this point, compute the source-dependent tasks:
+            // First thing, compute the velocity of the fixation point. It is source dependent:
+            Vector dx_FP(3,0.0);
             if (src_mode == "torso")
             {
-                run_torsoMode();
+                compute_dxFP_torsoMode(dx_FP);
             }
             else if (src_mode == "inertial")
             {
-                run_inertialMode();
+                compute_dxFP_inertialMode(dx_FP);
             }
+            else if (src_mode == "wholeBody")
+            {
+                compute_dxFP_wholeBodyMode(dx_FP);
+            }
+            printMessage(1,"dx_FP:\t%s\n", dx_FP.toString(3,3).c_str());
+
+            stabilizeEyes(dx_FP);
         }
         else
         {
@@ -185,39 +196,54 @@ void gazeStabilizerThread::run()
     }
 }
 
-bool gazeStabilizerThread::set_if_mode(const string &_ifm)
+bool gazeStabilizerThread::compute_dxFP_wholeBodyMode(Vector &_dx_FP)
 {
-    if (_ifm == "vel1" || _ifm == "vel2")
+    /*
+    * Conceptual recap:
+    * 4  - Read data from the wholeBody port 
+           (if there is no data, nothing is commanded)
+    * 5  - Compute the lever arm between the fixation point and the Neck Base
+    * 6A - Do the same magic as if we were in inertial mode..
+    * 6B - ..and also here
+    * 7  - Send dq_H
+    * 8  - Compute the dq_E as if we were in torso mode..
+    */
+
+    if (inWBBottle = inWBPort->read(false))
     {
-        if_mode = _ifm;
+        // 4  - Read data from the wholeBody port 
+        //      (if there is no data, nothing is commanded)
+        // Translational part
+        Vector v(3,0.0);
+        double vX = inWBBottle -> get(0).asDouble(); v[0] = vX;
+        double vY = inWBBottle -> get(1).asDouble(); v[1] = vY;
+        double vZ = inWBBottle -> get(2).asDouble(); v[2] = vZ;
+
+        // Rotational part
+        double wX = inWBBottle -> get(3).asDouble();
+        double wY = inWBBottle -> get(4).asDouble();
+        double wZ = inWBBottle -> get(5).asDouble();
+
+        // 5  - Compute the lever arm between the fixation point and the Neck Base
+        Matrix H = neck -> getH(2);     // get the H from ROOT to Neck Base
+        H(0,3) = xFP_R[0]-H(0,3);
+        H(1,3) = xFP_R[1]-H(1,3);
+        H(2,3) = xFP_R[2]-H(2,3);
+
+        // 6 - Do the magic
+        Vector dx_FP = CTRL_DEG2RAD*(v+wX*cross(H,0,H,3)+wY*cross(H,1,H,3)+wZ*cross(H,2,H,3));
+
+        _dx_FP = dx_FP;
         return true;
     }
-    return false;
-}
-
-bool gazeStabilizerThread::set_src_mode(const string &_srcm)
-{
-    if (_srcm == "torso" || _srcm == "inertial")
+    else
     {
-        src_mode = _srcm;
-        return true;
+        printMessage(0,"No signal from the WB port!\n");
+        return false;
     }
-    return false;
 }
 
-bool gazeStabilizerThread::startStabilization()
-{
-    isRunning = true;
-    return true;
-}
-
-bool gazeStabilizerThread::stopStabilization()
-{
-    isRunning = false;
-    return true;
-}
-
-void gazeStabilizerThread::run_inertialMode()
+bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP)
 {
     /*
     * Conceptual recap:
@@ -226,7 +252,6 @@ void gazeStabilizerThread::run_inertialMode()
     * 5  - Compute the lever arm between the fixation point and the IMU
     * 6A - PUT THE MAGIC HERE ...
     * 6B - ... AND HERE!
-    * 8  - Send dq_E
     */
 
     if (inIMUBottle = inIMUPort->read(false))
@@ -244,28 +269,25 @@ void gazeStabilizerThread::run_inertialMode()
         H(2,3) = xFP_R[2]-H(2,3);
 
         // 6A - Filter out the noise on the gyro readouts
-        Vector vor_fprelv;
+        Vector dx_FP;
         if ((fabs(gyrX)<GYRO_BIAS_STABILITY) && (fabs(gyrY)<GYRO_BIAS_STABILITY) &&
             (fabs(gyrZ)<GYRO_BIAS_STABILITY))
-            vor_fprelv.resize(J_E.rows(),0.0);    // pinv(J_E) => use rows
+            dx_FP.resize(J_E.rows(),0.0);    // pinv(J_E) => use rows
         // 6B - Do the magic 
         else
-            vor_fprelv=CTRL_DEG2RAD*(gyrX*cross(H,0,H,3)+gyrY*cross(H,1,H,3)+gyrZ*cross(H,2,H,3));
+            dx_FP=CTRL_DEG2RAD*(gyrX*cross(H,0,H,3)+gyrY*cross(H,1,H,3)+gyrZ*cross(H,2,H,3));
 
-        Matrix J_E_pinv = pinv(J_E);
-        Vector dq_E = -CTRL_RAD2DEG * (J_E_pinv*vor_fprelv);
-        printMessage(0,"dq_E:\t%s\n", dq_E.toString(3,3).c_str());
-
-        // 9 - Send dq_E
-        moveEyes(dq_E);
+        _dx_FP = dx_FP;
+        return true;
     }
     else
     {
         printMessage(0,"No signal from the IMU!\n");
+        return false;
     }
 }
 
-void gazeStabilizerThread::run_torsoMode()
+bool gazeStabilizerThread::compute_dxFP_torsoMode(Vector &_dx_FP)
 {
     /*
     * Conceptual recap:
@@ -274,8 +296,6 @@ void gazeStabilizerThread::run_torsoMode()
     * 5 - Convert x_FP from root to RF_E
     * 6 - SetHN() with x_FP
     * 7 - Compute dx_FP = J_TH * [dq_T ; dq_H]
-    * 8 - Compute dq_E  = J_E+ * dx_FP;
-    * 9 - Send dq_E
     */
 
     if (inTorsoBottle = inTorsoPort->read(false))
@@ -307,23 +327,80 @@ void gazeStabilizerThread::run_torsoMode()
         Matrix J_TH = chainNeck -> GeoJacobian();
         printMessage(1,"J_TH:\n%s\n",J_TH.toString(3,3).c_str());
         Vector dx_FP = J_TH * dq;
-        printMessage(1,"dx_FP:\t%s\n", dx_FP.toString(3,3).c_str());
-
-        // 8 - Compute dq_E  = J_E+ * dx_FP;
-        Matrix J_E_pinv = pinv(J_E);
-        Vector dq_E = -CTRL_RAD2DEG * (J_E_pinv * dx_FP.subVector(0,2));
-        printMessage(0,"dq_E:\t%s\n", dq_E.toString(3,3).c_str());
-
-        // 9 - Send dq_E
-        moveEyes(dq_E);
+        _dx_FP = dx_FP.subVector(0,2);
+        return true;
     }
+    else
+    {
+        printMessage(0,"No signal from the torso port!\n");
+        return false;
+    }
+}
+
+bool gazeStabilizerThread::stabilizeEyes(const Vector &_dx_FP)
+{
+    // 8 - Compute dq_E  = J_E+ * dx_FP;
+    Matrix J_E_pinv = pinv(J_E);
+    Vector dq_E = -CTRL_RAD2DEG * (J_E_pinv * _dx_FP);
+    printMessage(0,"dq_E:\t%s\n", dq_E.toString(3,3).c_str());
+
+    // 9 - Send dq_E
+    if (moveEyes(dq_E))
+        return true;
+    else
+        return false;
+}
+
+bool gazeStabilizerThread::stabilizeEyesHead(const Vector &_dx_FP)
+{
+    if (stabilizeEyes(_dx_FP))
+        return true;
+    else
+        return false;
+}
+
+bool gazeStabilizerThread::set_if_mode(const string &_ifm)
+{
+    if (_ifm == "vel1" || _ifm == "vel2")
+    {
+        if_mode = _ifm;
+        return true;
+    }
+    return false;
+}
+
+bool gazeStabilizerThread::set_src_mode(const string &_srcm)
+{
+    if (_srcm == "torso" || _srcm == "inertial")
+    {
+        src_mode = _srcm;
+        return true;
+    }
+    else if(_srcm == "wholeBody" || _srcm == "whole_body" || _srcm == "wholebody")
+    {
+        src_mode = "wholeBody";
+        return true;
+    }
+    return false;
+}
+
+bool gazeStabilizerThread::startStabilization()
+{
+    isRunning = true;
+    return true;
+}
+
+bool gazeStabilizerThread::stopStabilization()
+{
+    isRunning = false;
+    return true;
 }
 
 bool gazeStabilizerThread::moveEyes(const Vector &_dq_E)
 {
     // if (norm(_dq_E) < 100)
     // {
-        printMessage(1,"Moving eyes to: %s\n",_dq_E.toString(3,3).c_str());
+        printMessage(0,"Moving eyes to: %s\n",_dq_E.toString(3,3).c_str());
 
         std::vector<int> Ejoints;  // indexes of the joints to control
         Ejoints.push_back(3);
@@ -451,8 +528,12 @@ void gazeStabilizerThread::threadRelease()
     //     iposH -> positionMove(pos0.data());
 
     printMessage(0,"Closing ports...\n");
-        inTorsoPort->close();
-        inIMUPort->close();
+        // inTorsoPort-> close();
+        // inIMUPort  -> close();
+        // inWBPort   -> close();
+        closePort(inTorsoPort);
+        closePort(inIMUPort);
+        closePort(inWBPort);
 
     printMessage(0,"Closing controllers..\n");
         ddH->close();

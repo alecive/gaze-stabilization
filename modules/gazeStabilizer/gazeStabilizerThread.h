@@ -99,8 +99,11 @@ protected:
     BufferedPort<Bottle>  *inTorsoPort;   // port for reading from the torsoController
     Bottle                *inTorsoBottle; // bottle used for the port
 
-    BufferedPort<Bottle>  *inIMUPort;    // port for reading from the inertial sensor
-    Bottle                *inIMUBottle;  // bottle used for the port
+    BufferedPort<Bottle>  *inIMUPort;     // port for reading from the inertial sensor
+    Bottle                *inIMUBottle;   // bottle used for the port
+
+    BufferedPort<Bottle>  *inWBPort;      // port for reading neck velocities from the whole body
+    Bottle                *inWBBottle;    // bottle used for the port
 
     /**
     * Updates a kinematic chain belonging to an eye.
@@ -118,8 +121,23 @@ protected:
     **/
     void updateIMUChain(iKinChain &_imu);
 
-    void run_torsoMode();
-    void run_inertialMode();
+    /**
+    * Three sources of information lead to three different ways of computing
+    * the velocity of the fixation point (listed below)
+    **/
+    bool compute_dxFP_torsoMode(Vector &_dx_FP);
+    bool compute_dxFP_inertialMode(Vector &_dx_FP);
+    bool compute_dxFP_wholeBodyMode(Vector &_dx_FP);
+
+    /**
+    * Two different gaze stabilization techniques: either eyes, or eyes + head
+    **/
+    bool stabilizeEyes(const Vector &_dx_FP);
+    bool stabilizeEyesHead(const Vector &_dx_FP);
+
+    // void run_torsoMode();
+    // void run_inertialMode();
+    // void run_wholeBodyMode();
 
     bool moveEyes(const Vector &_dq_E);
 
