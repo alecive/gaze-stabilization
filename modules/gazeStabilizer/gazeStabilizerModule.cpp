@@ -184,6 +184,15 @@ class gazeStabilizer: public RFModule
                             else
                                 reply.addVocab(nack);
                         }
+                        else if (command.get(1).asString() == "ctrl_mode")
+                        {
+                            if (gazeStabilizerThrd -> set_ctrl_mode(command.get(2).asString()))
+                            {
+                                reply.addVocab(ack);
+                            }
+                            else
+                                reply.addVocab(nack);
+                        }
                         else
                             reply.addVocab(nack);
 
@@ -206,8 +215,8 @@ class gazeStabilizer: public RFModule
             int    verbosity =                0; // verbosity
             int    rate      =               10; // rate of the gazeStabilizerThread
             string if_mode   =           "vel2"; // it can be either vel1 or vel2
-            string src_mode  =       "inertial"; // it can be either torso or inertial
-
+            string src_mode  =       "inertial"; // it can be either torso or inertial or wholeBody
+            string ctrl_mode =           "eyes"; // it can be either eyes or eyesHead
 
             //******************* NAME ******************
                 if (rf.check("name"))
@@ -257,7 +266,7 @@ class gazeStabilizer: public RFModule
             //************** SOURCE_MODE **************
                 if (rf.check("src_mode"))
                 {
-                    if (rf.find("src_mode").asString() == "torso" || rf.find("src_mode").asString() == "inertial")
+                    if (rf.find("src_mode").asString() == "torso" || rf.find("src_mode").asString() == "inertial" || rf.find("src_mode").asString() == "wholeBody")
                     {
                         src_mode = rf.find("src_mode").asString();
                         printf(("*** "+name+": src_mode set to %s\n").c_str(),src_mode.c_str());
@@ -266,9 +275,21 @@ class gazeStabilizer: public RFModule
                 }
                 else printf(("*** "+name+": could not find src_mode option in the config file; using %s as default\n").c_str(),src_mode.c_str());
 
+            //************** CONTROL_MODE **************
+                if (rf.check("ctrl_mode"))
+                {
+                    if (rf.find("ctrl_mode").asString() == "eyes" || rf.find("ctrl_mode").asString() == "eyesHead")
+                    {
+                        ctrl_mode = rf.find("ctrl_mode").asString();
+                        printf(("*** "+name+": ctrl_mode set to %s\n").c_str(),ctrl_mode.c_str());
+                    }
+                    else printf(("*** "+name+": ctrl_mode option found but not allowed; using %s as default\n").c_str(),ctrl_mode.c_str());
+                }
+                else printf(("*** "+name+": could not find ctrl_mode option in the config file; using %s as default\n").c_str(),ctrl_mode.c_str());
+
 
             //****************** THREAD ******************
-                gazeStabilizerThrd = new gazeStabilizerThread(rate, name, robot, verbosity, if_mode, src_mode);
+                gazeStabilizerThrd = new gazeStabilizerThread(rate, name, robot, verbosity, if_mode, src_mode, ctrl_mode);
 
                 gazeStabilizerThrd -> start();
                 bool strt = 1;
@@ -326,7 +347,9 @@ int main(int argc, char * argv[])
         cout << "   --rate       rate:   the period used by the thread. Default 100ms." << endl;
         cout << "   --verbosity  int:    verbosity level (default 1)." << endl;
         cout << "   --if_mode    mode:   interface to use for velocity control (either vel1 or vel2, default vel2)." << endl;
-        cout << "   --src_mode   source: source to use for compensating (either torso or inertial, default torso)." << endl;
+        cout << "   --src_mode   source: source to use for compensating (either torso, inertial, or wholeBody; default torso)." << endl;
+        cout << "   --ctrl_mode  ctrl:   control to use for deploying the compensation" << endl;
+        cout << "                        (either eyes or eyesHead; default eyesHead)." << endl;
         cout << endl;
         return 0;
     }

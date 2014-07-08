@@ -61,7 +61,8 @@ protected:
     string name;        // Name of the module (to change port names accordingly)  
     string robot;       // Name of the robot (to address both icub and icubSim)
     string if_mode;     // Interface mode to use (either vel1 or vel2)
-    string src_mode;    // Source to use (either torso velocities through a port or the intetial sensor)
+    string src_mode;    // Source to use (either torso velocities through a port or the inertial sensor)
+    string ctrl_mode;   // Control to use (either only "eyes" or "eyesHead")
 
     // Classical interfaces - HEAD
     PolyDriver         *ddH;    // head device driver
@@ -135,11 +136,11 @@ protected:
     bool stabilizeEyes(const Vector &_dx_FP);
     bool stabilizeEyesHead(const Vector &_dx_FP);
 
-    // void run_torsoMode();
-    // void run_inertialMode();
-    // void run_wholeBodyMode();
-
+    /**
+    *
+    **/
     bool moveEyes(const Vector &_dq_E);
+    bool moveEyesHead(const Vector &_dq_EH);
 
     /**
     * Prints a message according to the verbosity level:
@@ -155,7 +156,7 @@ protected:
 
 public:
     // CONSTRUCTOR
-    gazeStabilizerThread(int _rate, string _name, string _robot, int _v, string _if_mode, string _src_mode);
+    gazeStabilizerThread(int _rate, string _name, string _robot, int _v, string _if_mode, string _src_mode, string _ctrl_mode);
     // INIT
     virtual bool threadInit();
     // RUN
@@ -168,4 +169,5 @@ public:
     // SET IF_MODE AND SRC_MODE ON THE FLY
     bool set_if_mode(const string &_ifm);
     bool set_src_mode(const string &_srcm);
+    bool set_ctrl_mode(const string &_ctrlm);
 };

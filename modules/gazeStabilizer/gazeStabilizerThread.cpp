@@ -8,9 +8,9 @@
 #define GYRO_BIAS_STABILITY                 5.0     // [deg/s]
 
 gazeStabilizerThread::gazeStabilizerThread(int _rate, string _name, string _robot, int _v,
-                                           string _if_mode, string _src_mode) :
-                                           RateThread(_rate), name(_name), robot(_robot),
-                                           verbosity(_v), if_mode(_if_mode), src_mode(_src_mode)
+                                           string _if_mode, string _src_mode, string _ctrl_mode) :
+                                           RateThread(_rate), name(_name), robot(_robot), verbosity(_v),
+                                           if_mode(_if_mode), src_mode(_src_mode), ctrl_mode(_ctrl_mode)
 {
     eyeL = new iCubEye("left_v2");
     eyeR = new iCubEye("right_v2");
@@ -187,13 +187,50 @@ void gazeStabilizerThread::run()
             }
             printMessage(1,"dx_FP:\t%s\n", dx_FP.toString(3,3).c_str());
 
-            stabilizeEyes(dx_FP);
+            // Secondly, compute the stabilization and send it to the robot.
+            // This step is ctrl_mode dependent:
+            if (ctrl_mode == "eyes")
+            {
+                stabilizeEyes(dx_FP);
+            }
+            else if (ctrl_mode == "eyesHead")
+            {
+                stabilizeEyesHead(dx_FP);
+            }
         }
         else
         {
             printMessage(0,"computeFixationPointData() returned false!\n");
         }
     }
+}
+
+bool gazeStabilizerThread::stabilizeEyes(const Vector &_dx_FP)
+{
+    // 1 - Compute dq_E  = J_E# * dx_FP;
+    Matrix J_E_pinv = pinv(J_E);
+    Vector dq_E = -CTRL_RAD2DEG * (J_E_pinv * _dx_FP);
+    printMessage(0,"dq_E:\t%s\n", dq_E.toString(3,3).c_str());
+
+    // 2 - Move the eyes with dq_EH
+    moveEyes(dq_E);
+
+    return true;
+}
+
+bool gazeStabilizerThread::stabilizeEyesHead(const Vector &_dx_FP)
+{
+    // 1 - Compute J_H, that is the jacobian of the head joints alone
+
+    // 2 - Attach J_H with J_E
+
+    // 3 - Compute dq_EH = J_HE# * dx_FP   
+    Vector dq_EH(6,0.0);
+    printMessage(0,"dq_EH:\t%s\n", dq_EH.toString(3,3).c_str());
+
+    // 4 - Move both the head and the eyes with dq_EH
+    moveEyesHead(dq_EH);
+    return false;
 }
 
 bool gazeStabilizerThread::compute_dxFP_wholeBodyMode(Vector &_dx_FP)
@@ -309,7 +346,6 @@ bool gazeStabilizerThread::compute_dxFP_torsoMode(Vector &_dx_FP)
         dq = CTRL_DEG2RAD * dq;
 
         // 5 - Convert x_FP from root to RF_E
-        chainNeck -> setHN(eye(4));
         Matrix H_RE = chainNeck->getH();        // matrix from root to RF_E
         xFP_R.push_back(1);
         Vector xFP_E = SE3inv(H_RE) * xFP_R;
@@ -322,9 +358,10 @@ bool gazeStabilizerThread::compute_dxFP_torsoMode(Vector &_dx_FP)
         HN(1,3)   = xFP_E(1);
         HN(2,3)   = xFP_E(2);
         chainNeck -> setHN(HN);
+        Matrix J_TH = chainNeck -> GeoJacobian();
+        chainNeck -> setHN(eye(4,4));
 
         // 7 - Compute dx_FP = J_TH * [dq_T ; dq_H]
-        Matrix J_TH = chainNeck -> GeoJacobian();
         printMessage(1,"J_TH:\n%s\n",J_TH.toString(3,3).c_str());
         Vector dx_FP = J_TH * dq;
         _dx_FP = dx_FP.subVector(0,2);
@@ -337,99 +374,62 @@ bool gazeStabilizerThread::compute_dxFP_torsoMode(Vector &_dx_FP)
     }
 }
 
-bool gazeStabilizerThread::stabilizeEyes(const Vector &_dx_FP)
+bool gazeStabilizerThread::moveEyesHead(const Vector &_dq_EH)
 {
-    // 8 - Compute dq_E  = J_E+ * dx_FP;
-    Matrix J_E_pinv = pinv(J_E);
-    Vector dq_E = -CTRL_RAD2DEG * (J_E_pinv * _dx_FP);
-    printMessage(0,"dq_E:\t%s\n", dq_E.toString(3,3).c_str());
+    // Move the head
+    std::vector<int> Ejoints;  // indexes of the joints to control
+    Ejoints.push_back(0);
+    Ejoints.push_back(1);
+    Ejoints.push_back(2);
 
-    // 9 - Send dq_E
-    if (moveEyes(dq_E))
-        return true;
+    if (if_mode == "vel2")
+    {
+        int nJnts = 3;
+        ivelH2 -> velocityMove(nJnts,Ejoints.data(),_dq_EH.data());
+    }
+    else if (if_mode == "vel1")
+    {
+        ivelH1 -> velocityMove(Ejoints[0],_dq_EH(0));
+        ivelH1 -> velocityMove(Ejoints[1],_dq_EH(1));
+        ivelH1 -> velocityMove(Ejoints[2],_dq_EH(2));
+    }
     else
+    {
+        printMessage(0,"if_mode is neither vel1 or vel2. No velocity will be sent.\n");
         return false;
-}
-
-bool gazeStabilizerThread::stabilizeEyesHead(const Vector &_dx_FP)
-{
-    if (stabilizeEyes(_dx_FP))
-        return true;
-    else
-        return false;
-}
-
-bool gazeStabilizerThread::set_if_mode(const string &_ifm)
-{
-    if (_ifm == "vel1" || _ifm == "vel2")
-    {
-        if_mode = _ifm;
-        return true;
     }
-    return false;
-}
 
-bool gazeStabilizerThread::set_src_mode(const string &_srcm)
-{
-    if (_srcm == "torso" || _srcm == "inertial")
-    {
-        src_mode = _srcm;
-        return true;
-    }
-    else if(_srcm == "wholeBody" || _srcm == "whole_body" || _srcm == "wholebody")
-    {
-        src_mode = "wholeBody";
-        return true;
-    }
-    return false;
-}
+    // Move the eyes
+    moveEyes(_dq_EH.subVector(3,5));
 
-bool gazeStabilizerThread::startStabilization()
-{
-    isRunning = true;
-    return true;
-}
-
-bool gazeStabilizerThread::stopStabilization()
-{
-    isRunning = false;
     return true;
 }
 
 bool gazeStabilizerThread::moveEyes(const Vector &_dq_E)
 {
-    // if (norm(_dq_E) < 100)
-    // {
-        printMessage(0,"Moving eyes to: %s\n",_dq_E.toString(3,3).c_str());
+    printMessage(1,"Moving eyes to: %s\n",_dq_E.toString(3,3).c_str());
+    std::vector<int> Ejoints;  // indexes of the joints to control
+    Ejoints.push_back(3);
+    Ejoints.push_back(4);
+    Ejoints.push_back(5);
+    printMessage(3,"Head joints to be controlled: %i %i %i\n",Ejoints[0],Ejoints[1],Ejoints[2]);
 
-        std::vector<int> Ejoints;  // indexes of the joints to control
-        Ejoints.push_back(3);
-        Ejoints.push_back(4);
-        Ejoints.push_back(5);
-        printMessage(3,"Head joints to be controlled: %i %i %i\n",Ejoints[0],Ejoints[1],Ejoints[2]);
-
-        if (if_mode == "vel2")
-        {
-            int nJnts = 3;
-            ivelH2 -> velocityMove(nJnts,Ejoints.data(),_dq_E.data());
-        }
-        else if (if_mode == "vel1")
-        {
-            ivelH1 -> velocityMove(Ejoints[0],_dq_E(0));
-            ivelH1 -> velocityMove(Ejoints[1],_dq_E(1));
-            ivelH1 -> velocityMove(Ejoints[2],_dq_E(2));
-        }
-        else
-        {
-            printMessage(0,"if_mode is neither vel1 or vel2. No velocity will be sent.\n");
-            return false;
-        }
-    // }
-    // else
-    // {
-    //     printMessage(1,"Desired velocities are higher (in norm) than 100. No velocity will be sent.\n");
-    //     return false;
-    // }
+    if (if_mode == "vel2")
+    {
+        int nJnts = 3;
+        ivelH2 -> velocityMove(nJnts,Ejoints.data(),_dq_E.data());
+    }
+    else if (if_mode == "vel1")
+    {
+        ivelH1 -> velocityMove(Ejoints[0],_dq_E(0));
+        ivelH1 -> velocityMove(Ejoints[1],_dq_E(1));
+        ivelH1 -> velocityMove(Ejoints[2],_dq_E(2));
+    }
+    else
+    {
+        printMessage(0,"if_mode is neither vel1 or vel2. No velocity will be sent.\n");
+        return false;
+    }
     return true;
 }
 
@@ -490,6 +490,53 @@ void gazeStabilizerThread::updateIMUChain(iKinChain &_imu)
 
     q = CTRL_DEG2RAD*q;
     _imu.setAng(q);
+}
+
+bool gazeStabilizerThread::set_if_mode(const string &_ifm)
+{
+    if (_ifm == "vel1" || _ifm == "vel2")
+    {
+        if_mode = _ifm;
+        return true;
+    }
+    return false;
+}
+
+bool gazeStabilizerThread::set_src_mode(const string &_srcm)
+{
+    if (_srcm == "torso" || _srcm == "inertial")
+    {
+        src_mode = _srcm;
+        return true;
+    }
+    else if(_srcm == "wholeBody" || _srcm == "whole_body" || _srcm == "wholebody")
+    {
+        src_mode = "wholeBody";
+        return true;
+    }
+    return false;
+}
+
+bool gazeStabilizerThread::set_ctrl_mode(const string &_ctrlm)
+{
+    if (_ctrlm == "eyes" || _ctrlm == "eyesHead")
+    {
+        ctrl_mode = _ctrlm;
+        return true;
+    }
+    return false;
+}
+
+bool gazeStabilizerThread::startStabilization()
+{
+    isRunning = true;
+    return true;
+}
+
+bool gazeStabilizerThread::stopStabilization()
+{
+    isRunning = false;
+    return true;
 }
 
 int gazeStabilizerThread::printMessage(const int l, const char *f, ...) const
