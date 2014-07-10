@@ -149,7 +149,8 @@ void torsoControllerThread::run()
     {
         case 0:
             Time::delay(0.1); // only to avoid a printing issue in the terminal
-            printMessage(0,"Starting.. Going to wayPoint #%i: ",currentWaypoint);
+            printMessage(0,"Starting..\n");
+            printMessage(0,"Going to wayPoint #%i: ",currentWaypoint);
             wayPoints[currentWaypoint].printCompact();
             step++;
             break;
