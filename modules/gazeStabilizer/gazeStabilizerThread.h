@@ -95,6 +95,7 @@ protected:
     Vector xFP_R;
     Matrix J_E;
     bool isRunning;         // Flag to manage the status of the thread
+    Vector dq_T;
 
     // Input from the torsoController
     BufferedPort<Bottle>  *inTorsoPort;   // port for reading from the torsoController
@@ -131,10 +132,15 @@ protected:
     bool compute_dxFP_wholeBodyMode(Vector &_dx_FP);
 
     /**
+    * Computes the velocity of the fixation point given a vector of joint velocities dq
+    **/
+    Vector compute_dxFP_kinematics(Vector &_dq);
+
+    /**
     * Two different gaze stabilization techniques: either eyes, or eyes + head
     **/
-    bool stabilizeEyes(const Vector &_dx_FP);
-    bool stabilizeEyesHead(const Vector &_dx_FP);
+    Vector stabilizeEyes(const Vector &_dx_FP);
+    Vector stabilizeEyesHead(const Vector &_dx_FP);
 
     /**
     *
