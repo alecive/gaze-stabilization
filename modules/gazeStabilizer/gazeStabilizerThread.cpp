@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <iomanip>
 
-#define GYRO_BIAS_STABILITY                 5.0     // [deg/s]
+#define GYRO_BIAS_STABILITY                 4.0     // [deg/s]
 
 gazeStabilizerThread::gazeStabilizerThread(int _rate, string _name, string _robot, int _v,
                                            string _if_mode, string _src_mode, string _ctrl_mode) :
@@ -56,7 +56,7 @@ bool gazeStabilizerThread::threadInit()
 {
     inTorsoPort -> open(("/"+name+"/torsoController:i").c_str());
     inIMUPort   -> open(("/"+name+"/inertial:i").c_str());
-    inIMUPort   -> open(("/"+name+"/wholeBody:i").c_str());
+    inWBPort    -> open(("/"+name+"/wholeBody:i").c_str());
 
     Network::connect("/torsoController/gazeStabilizer:o",("/"+name+"/torsoController:i").c_str());
     Network::connect("/torsoController/rpc:o",("/"+name+"/rpc:i").c_str());
@@ -194,13 +194,13 @@ void gazeStabilizerThread::run()
             if (ctrl_mode == "eyes")
             {
                 Vector dq_E=stabilizeEyes(dx_FP);
-                printMessage(0,"dq_E:\t%s\n", dq_E.toString(3,3).c_str());
+                printMessage(0,"dq_E:\t%s\n\n", dq_E.toString(3,3).c_str());
                 moveEyes(dq_E);
             }
             else if (ctrl_mode == "eyesHead")
             {
                 Vector dq_EH=stabilizeEyesHead(dx_FP);
-                printMessage(0,"dq_EH:\t%s\n", dq_EH.toString(3,3).c_str());
+                printMessage(0,"dq_EH:\t%s\n\n", dq_EH.toString(3,3).c_str());
                 moveEyesHead(dq_EH);
             }
         }
@@ -258,17 +258,29 @@ Vector gazeStabilizerThread::stabilizeEyesHead(const Vector &_dx_FP)
 
     // 3 - Compute dq_EH = J_H# * dx_FP  
     Matrix J_H_pinv = pinv(J_Hp); 
-    printMessage(1,"J_H_pinv:\n%s\n",J_H_pinv.toString(3,3).c_str());
+
     Vector dq_H = -CTRL_RAD2DEG * (J_H_pinv * dx_FP);
     Vector dq_EH(6,0.0);
     dq_EH.setSubvector(0,dq_H);
 
     Vector dq_TH(6,0.0);
-    dq_TH.setSubvector(0,CTRL_DEG2RAD * dq_T);
-    dq_TH.setSubvector(3,CTRL_DEG2RAD * dq_H);
-    Vector dx_FP_2 = compute_dxFP_kinematics(dq_TH);
+    dq_TH.setSubvector(0,dq_T);
+    dq_TH.setSubvector(3,dq_H);
+    printMessage(1,"dq_TH:\t%s\n", dq_TH.toString(3,3).c_str());
 
-    Vector dq_E=stabilizeEyes(dx_FP_2);
+    Vector dq_E(3,0.0);
+    if(src_mode == "torso")
+    {
+        Vector d2R_dq_TH = CTRL_DEG2RAD * dq_TH;
+        Vector dx_FP_2   = compute_dxFP_kinematics(d2R_dq_TH);
+        printMessage(0,"dx_FP_2:\t%s\t\n", dx_FP_2.toString(3,3).c_str());
+        dq_E=stabilizeEyes(dx_FP_2);
+    }
+    else
+    {
+        dq_E=stabilizeEyes(_dx_FP);
+    }
+
     dq_EH.setSubvector(3,dq_E);
 
     return dq_EH;
@@ -310,9 +322,13 @@ bool gazeStabilizerThread::compute_dxFP_wholeBodyMode(Vector &_dx_FP)
         H(2,3) = xFP_R[2]-H(2,3);
 
         // 6 - Do the magic v_FP = v+w^r
-        Vector dx_FP = CTRL_DEG2RAD*(v+wX*cross(H,0,H,3)+wY*cross(H,1,H,3)+wZ*cross(H,2,H,3));
+        Vector dx_FP = v+wX*cross(H,0,H,3)+wY*cross(H,1,H,3)+wZ*cross(H,2,H,3);
 
         _dx_FP.setSubvector(0, dx_FP);
+
+        w.push_back(1.0);
+        w = CTRL_DEG2RAD * H*w;
+        w.pop_back();
         _dx_FP.setSubvector(3, w);
         return true;
     }
@@ -338,10 +354,12 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP)
     {
         // 4  - Read data from the inertial sensor
         //     (if there is no data, nothing is commanded)
-        double gyrX = inIMUBottle -> get(6).asDouble();
-        double gyrY = inIMUBottle -> get(7).asDouble();
-        double gyrZ = inIMUBottle -> get(8).asDouble();
+        Vector w(3,0.0);
+        double gyrX = inIMUBottle -> get(6).asDouble(); w[0] = gyrX;
+        double gyrY = inIMUBottle -> get(7).asDouble(); w[1] = gyrY;
+        double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ;
 
+        printMessage(0,"Gyro: \t%s\n",w.toString(3,3).c_str());
         // 5  - Compute the lever arm between the fixation point and the IMU
         Matrix H = IMU -> getH();
         H(0,3) = xFP_R[0]-H(0,3);
@@ -355,9 +373,21 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP)
             dx_FP.resize(J_E.rows(),0.0);
         // 6B - Do the magic 
         else
+        {
             dx_FP=CTRL_DEG2RAD*(gyrX*cross(H,0,H,3)+gyrY*cross(H,1,H,3)+gyrZ*cross(H,2,H,3));
 
-        _dx_FP.setSubvector(0, dx_FP);
+            _dx_FP.setSubvector(0, dx_FP);
+
+            H(0,3) = 0;
+            H(1,3) = 0;
+            H(2,3) = 0;
+
+            // printMessage(0,"w: \t%s\tH:\n%s\n",w.toString(3,3).c_str(),H.toString(3,3).c_str());
+            w.push_back(1.0);
+            w = CTRL_DEG2RAD * H*w;
+            w.pop_back();
+            _dx_FP.setSubvector(3, w);
+        }
         return true;
     }
     else
@@ -414,7 +444,7 @@ Vector gazeStabilizerThread::compute_dxFP_kinematics(Vector &_dq)
     printMessage(1,"xFP_E:\t%s\n", xFP_E.toString(3,3).c_str());
 
     // 6 - SetHN() with xFP_E
-    Matrix HN = eye(4);
+    Matrix HN = eye(4,4);
     HN(0,3)   = xFP_E(0);
     HN(1,3)   = xFP_E(1);
     HN(2,3)   = xFP_E(2);
@@ -592,6 +622,17 @@ bool gazeStabilizerThread::stopStabilization()
     return true;
 }
 
+bool gazeStabilizerThread::goHome()
+{
+    if (!isRunning)
+    {
+        Vector pos0(6,0.0);
+        iposH -> positionMove(pos0.data());
+        return true;
+    }
+    return false;
+}
+
 int gazeStabilizerThread::printMessage(const int l, const char *f, ...) const
 {
     if (verbosity>=l)
@@ -624,8 +665,8 @@ void gazeStabilizerThread::closePort(Contactable *_port)
 void gazeStabilizerThread::threadRelease()
 {
     printMessage(0,"Moving head to home position.. \n");
-        Vector pos0(6,0.0);
-        iposH -> positionMove(pos0.data());
+        stopStabilization();
+        // goHome();
 
     printMessage(0,"Closing ports...\n");
         // inTorsoPort-> close();

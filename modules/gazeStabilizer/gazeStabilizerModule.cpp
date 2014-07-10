@@ -164,8 +164,47 @@ class gazeStabilizer: public RFModule
                         reply.addVocab(res);
                         return true;
                     }
+                    case VOCAB4('h','o','m','e'):
+                    {
+                        int res=Vocab::encode("going");
+                        if (gazeStabilizerThrd -> goHome())
+                        {
+                            reply.addVocab(ack);
+                        }
+                        else
+                            reply.addVocab(nack);
+                        
+                        reply.addVocab(res);
+                        return true;
+                    }
+                    case VOCAB3('g','e','t'):
+                    {
+                        reply.addString(command.get(1).asString());
+
+                        if (command.get(1).asString() == "if_mode")
+                        {
+                            reply.addVocab(ack);
+                            reply.addString(gazeStabilizerThrd -> get_if_mode());
+                        }
+                        else if (command.get(1).asString() == "src_mode")
+                        {
+                            reply.addVocab(ack);
+                            reply.addString(gazeStabilizerThrd -> get_src_mode());
+                        }
+                        else if (command.get(1).asString() == "ctrl_mode")
+                        {
+                            reply.addVocab(ack);
+                            reply.addString(gazeStabilizerThrd -> get_ctrl_mode());
+                        }
+                        else
+                            reply.addVocab(nack);
+
+                        return true;
+                    }
                     case VOCAB3('s','e','t'):
                     {
+                        reply.addString(command.get(1).asString());
+
                         if (command.get(1).asString() == "if_mode")
                         {
                             if (gazeStabilizerThrd -> set_if_mode(command.get(2).asString()))

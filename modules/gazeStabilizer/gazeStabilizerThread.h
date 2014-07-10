@@ -172,8 +172,14 @@ public:
     // START AND STOP THE STABILIZATION
     bool startStabilization();
     bool  stopStabilization();
-    // SET IF_MODE AND SRC_MODE ON THE FLY
+    // SET IF_MODE, SRC_MODE AND CTLR_MODE ON THE FLY
     bool set_if_mode(const string &_ifm);
     bool set_src_mode(const string &_srcm);
     bool set_ctrl_mode(const string &_ctrlm);
+    // GET IF_MODE, SRC_MODE AND CTRL_MODE
+    string get_if_mode()   { return if_mode;   };
+    string get_src_mode()  { return src_mode;  };
+    string get_ctrl_mode() { return ctrl_mode; };
+    // GO HOME
+    bool goHome();
 };
