@@ -85,6 +85,7 @@ bool gazeStabilizerThread::threadInit()
         ok = ok && ddH->view(ivelH1);
         ok = ok && ddH->view(ivelH2);
         ok = ok && ddH->view(ilimH);
+        ok = ok && ddH->view(imodH);
     }
 
     if (!ok)
@@ -235,7 +236,7 @@ Vector gazeStabilizerThread::stabilizeEyesHead(const Vector &_dx_FP)
     xFP_R.push_back(1);
     Vector xFP_E = SE3inv(H_RE) * xFP_R;
     xFP_R.pop_back();
-    printMessage(0,"xFP_R:\t%s\tNeckDOF %i\n", xFP_R.toString(3,3).c_str(),chainNeck->getDOF());
+    printMessage(0,"xFP_R:\t%s\t\t\tNeckDOF %i\n", xFP_R.toString(3,3).c_str(),chainNeck->getDOF());
     printMessage(1,"xFP_E:\t%s\n", xFP_E.toString(3,3).c_str());
 
     // 2  - Compute J_H, that is the jacobian of the head joints alone
@@ -407,6 +408,7 @@ bool gazeStabilizerThread::compute_dxFP_torsoMode(Vector &_dx_FP)
     * 6 - SetHN() with x_FP
     * 7 - Compute dx_FP = J_TH * [dq_T ; dq_H]
     */
+    dq_T.resize(3,0.0);
 
     if (inTorsoBottle = inTorsoPort->read(false))
     {
@@ -460,7 +462,7 @@ Vector gazeStabilizerThread::compute_dxFP_kinematics(Vector &_dq)
 bool gazeStabilizerThread::moveEyesHead(const Vector &_dq_EH)
 {
     VectorOf<int> jointsToSet;
-    if (!areJointsHealthyAndSet(jointsToSet))
+    if (!areJointsHealthyAndSet(jointsToSet,"velocity"))
     {
         stopStabilization();
         return false;
@@ -502,7 +504,7 @@ bool gazeStabilizerThread::moveEyesHead(const Vector &_dq_EH)
 bool gazeStabilizerThread::moveEyes(const Vector &_dq_E)
 {
     VectorOf<int> jointsToSet;
-    if (!areJointsHealthyAndSet(jointsToSet))
+    if (!areJointsHealthyAndSet(jointsToSet,"velocity"))
     {
         stopStabilization();
         return false;
@@ -597,7 +599,7 @@ void gazeStabilizerThread::updateIMUChain(iKinChain &_imu)
     _imu.setAng(q);
 }
 
-bool gazeStabilizerThread::areJointsHealthyAndSet(VectorOf<int> &jointsToSet)
+bool gazeStabilizerThread::areJointsHealthyAndSet(VectorOf<int> &jointsToSet,const string _s)
 {
     VectorOf<int> modes(encsH->size());
     imodH->getControlModes(modes.getFirst());
@@ -606,13 +608,18 @@ bool gazeStabilizerThread::areJointsHealthyAndSet(VectorOf<int> &jointsToSet)
     {
         if ((modes[i]==VOCAB_CM_HW_FAULT) || (modes[i]==VOCAB_CM_IDLE))
             return false;
-        else if (i<3)
+
+        if (_s=="velocity")
         {
-            if (modes[i]!=VOCAB_CM_VELOCITY)
+            if (modes[i]!=VOCAB_CM_MIXED || modes[i]!=VOCAB_CM_VELOCITY)
                 jointsToSet.push_back(i);
         }
-        else if (modes[i]!=VOCAB_CM_MIXED)
-            jointsToSet.push_back(i);
+        else if (_s=="position")
+        {
+            if (modes[i]!=VOCAB_CM_MIXED || modes[i]!=VOCAB_CM_POSITION)
+                jointsToSet.push_back(i);
+        }
+
     }
 
     return true;
@@ -699,7 +706,7 @@ bool gazeStabilizerThread::goHome()
     if (!isRunning)
     {
         VectorOf<int> jointsToSet;
-        if (!areJointsHealthyAndSet(jointsToSet))
+        if (!areJointsHealthyAndSet(jointsToSet,"position"))
         {
             stopStabilization();
             return false;
