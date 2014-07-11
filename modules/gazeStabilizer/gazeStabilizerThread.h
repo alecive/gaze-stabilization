@@ -71,6 +71,7 @@ protected:
     IVelocityControl   *ivelH1;
     IVelocityControl2  *ivelH2;
     IControlLimits     *ilimH;
+    IControlMode2      *imodH;
     Vector             *encsH;
     int jntsH;
 
@@ -147,6 +148,20 @@ protected:
     **/
     bool moveEyes(const Vector &_dq_E);
     bool moveEyesHead(const Vector &_dq_EH);
+
+    /**
+     * Check the state of each joint to be controlled
+     * @param  jointsToSet vector of integers that defines the joints to be set
+     * @return             true/false if success/failure
+     */
+    bool areJointsHealthyAndSet(VectorOf<int> &jointsToSet);
+
+    /**
+     * Changes the control modes of the torso to either position or velocity
+     * @param  _s mode to set. It can be either "position" or "velocity"
+     * @return    true/false if success/failure
+     */
+    bool setHeadCtrlModes(const VectorOf<int> &jointsToSet,const string _s);
 
     /**
     * Prints a message according to the verbosity level:

@@ -459,6 +459,17 @@ Vector gazeStabilizerThread::compute_dxFP_kinematics(Vector &_dq)
 
 bool gazeStabilizerThread::moveEyesHead(const Vector &_dq_EH)
 {
+    VectorOf<int> jointsToSet;
+    if (!areJointsHealthyAndSet(jointsToSet))
+    {
+        stopStabilization();
+        return false;
+    }
+    else
+    {
+        setHeadCtrlModes(jointsToSet,"velocity");
+    }
+
     // Move the head
     std::vector<int> Ejoints;  // indexes of the joints to control
     Ejoints.push_back(0);
@@ -490,6 +501,17 @@ bool gazeStabilizerThread::moveEyesHead(const Vector &_dq_EH)
 
 bool gazeStabilizerThread::moveEyes(const Vector &_dq_E)
 {
+    VectorOf<int> jointsToSet;
+    if (!areJointsHealthyAndSet(jointsToSet))
+    {
+        stopStabilization();
+        return false;
+    }
+    else
+    {
+        setHeadCtrlModes(jointsToSet,"velocity");
+    }
+
     printMessage(1,"Moving eyes to: %s\n",_dq_E.toString(3,3).c_str());
     std::vector<int> Ejoints;  // indexes of the joints to control
     Ejoints.push_back(3);
@@ -575,6 +597,56 @@ void gazeStabilizerThread::updateIMUChain(iKinChain &_imu)
     _imu.setAng(q);
 }
 
+bool gazeStabilizerThread::areJointsHealthyAndSet(VectorOf<int> &jointsToSet)
+{
+    VectorOf<int> modes(encsH->size());
+    imodH->getControlModes(modes.getFirst());
+
+    for (size_t i=0; i<modes.size(); i++)
+    {
+        if ((modes[i]==VOCAB_CM_HW_FAULT) || (modes[i]==VOCAB_CM_IDLE))
+            return false;
+        else if (i<3)
+        {
+            if (modes[i]!=VOCAB_CM_VELOCITY)
+                jointsToSet.push_back(i);
+        }
+        else if (modes[i]!=VOCAB_CM_MIXED)
+            jointsToSet.push_back(i);
+    }
+
+    return true;
+}
+
+bool gazeStabilizerThread::setHeadCtrlModes(const VectorOf<int> &jointsToSet,const string _s)
+{
+    if (_s!="position" || _s!="velocity")
+        return false;
+
+    if (jointsToSet.size()==0)
+        return true;
+
+    VectorOf<int> modes;
+    for (size_t i=0; i<jointsToSet.size(); i++)
+    {
+        if (_s=="position")
+        {
+            modes.push_back(VOCAB_CM_POSITION);
+        }
+        else if (_s=="velocity")
+        {
+            modes.push_back(VOCAB_CM_VELOCITY);
+        }
+    }
+
+    imodH->setControlModes(jointsToSet.size(),
+                           jointsToSet.getFirst(),
+                           modes.getFirst());
+
+    return true;
+}
+
+
 bool gazeStabilizerThread::set_if_mode(const string &_ifm)
 {
     if (_ifm == "vel1" || _ifm == "vel2")
@@ -626,6 +698,17 @@ bool gazeStabilizerThread::goHome()
 {
     if (!isRunning)
     {
+        VectorOf<int> jointsToSet;
+        if (!areJointsHealthyAndSet(jointsToSet))
+        {
+            stopStabilization();
+            return false;
+        }
+        else
+        {
+            setHeadCtrlModes(jointsToSet,"position");
+        }
+
         Vector pos0(6,0.0);
         iposH -> positionMove(pos0.data());
         return true;
