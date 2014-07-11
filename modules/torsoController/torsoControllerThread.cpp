@@ -129,6 +129,7 @@ bool torsoControllerThread::threadInit()
         ok = ok && ddT.view(iposT);
         ok = ok && ddT.view(ivelT);
         ok = ok && ddT.view(iencsT);
+        ok = ok && ddT.view(imodT);
     }
 
     if (!ok)
@@ -166,6 +167,7 @@ void torsoControllerThread::run()
             break;
         case 2:
             printMessage(0,"Going to wayPoint #%i: ",currentWaypoint);
+            setTorsoCtrlModes("velocity");
             wayPoints[currentWaypoint].printCompact();
             step++;
             break;
@@ -199,8 +201,7 @@ bool torsoControllerThread::processWayPoint()
         wayPoints[currentWaypoint].name == "END        ")
     {
         printMessage(1,"Putting torso in home position..\n");
-        Vector pos0(3,0.0);
-        iposT -> positionMove(pos0.data());
+        goHome();
 
         if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
         {
@@ -240,6 +241,45 @@ bool torsoControllerThread::processWayPoint()
         return flag;
     }
 
+    return true;
+}
+
+bool torsoControllerThread::setTorsoCtrlModes(const string _s)
+{
+    if (_s!="position" || _s!="velocity")
+        return false;
+
+    VectorOf<int> jointsToSet;
+    jointsToSet.push_back(0);
+    jointsToSet.push_back(1);
+    jointsToSet.push_back(2);
+    VectorOf<int> modes;
+
+    if (_s=="position")
+    {
+        modes.push_back(VOCAB_CM_POSITION);
+        modes.push_back(VOCAB_CM_POSITION);
+        modes.push_back(VOCAB_CM_POSITION);
+    }
+    else if (_s=="velocity")
+    {
+        modes.push_back(VOCAB_CM_VELOCITY);
+        modes.push_back(VOCAB_CM_VELOCITY);
+        modes.push_back(VOCAB_CM_VELOCITY);
+    }
+
+    imodT -> setControlModes(jointsToSet.size(),
+                             jointsToSet.getFirst(),
+                             modes.getFirst());
+
+    return true;
+}
+
+bool torsoControllerThread::goHome()
+{
+    setTorsoCtrlModes("position");
+    Vector pos0(3,0.0);
+    iposT -> positionMove(pos0.data());
     return true;
 }
 
@@ -311,11 +351,11 @@ void torsoControllerThread::closePort(Contactable *_port)
 void torsoControllerThread::threadRelease()
 {
     printMessage(0,"Putting torso in home position..\n");
-        Vector pos0(3,0.0);
-        iposT -> positionMove(pos0.data());
+        goHome();
 
     printMessage(0,"Stopping gazeStabilizer..\n");
         gateStabilization("stop");
+        gateStabilization("home");
 
     printMessage(0,"Closing controllers..\n");
         ddT.close();

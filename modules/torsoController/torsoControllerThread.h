@@ -78,6 +78,7 @@ protected:
     IPositionControl   *iposT;
     IVelocityControl2  *ivelT;
     IEncoders          *iencsT;
+    IControlMode2      *imodT;
     Vector             *encsT;
     int jntsT;
 
@@ -93,11 +94,32 @@ protected:
     Port      outPort;
     RpcClient GSrpcPort;
 
+    bool processWayPoint();
+
+    /**
+     * Deals the rpc interaction with the gazeStabilization. It manages start/stop/home states.
+     * @param _g string to be passed through the rpc ports
+     */
     void gateStabilization(const string _g);
 
+    /**
+     * Sends the vels of the waypoint under current evaluation to the port AS-THEY-ARE.
+     * No check will be done. The format is a simple bottle of double (v0, v1, v2), in [deg]
+     */
     void sendCommand();
 
-    bool processWayPoint();
+    /**
+     * Changes the control modes of the torso to either position or velocity
+     * @param  _s mode to set. It can be either "position" or "velocity"
+     * @return    true/false if success/failure
+     */
+    bool setTorsoCtrlModes(const string _s);
+
+    /**
+     * goes into home configuration (i.e. 0 0 0)
+     * @return    true/false if success/failure
+     */
+    bool goHome();
 
     /**
     * Prints a message according to the verbosity level:
