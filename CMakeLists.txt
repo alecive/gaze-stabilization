@@ -50,6 +50,6 @@ icubcontrib_add_uninstall_target()
 
 ### create a single target that installs all applications at once
 file(GLOB conf     app/conf/*.ini)
-file(GLOB scripts  app/scripts/*.template)
+file(GLOB scripts  app/scripts/*.xml)
 yarp_install(FILES ${conf}    DESTINATION ${ICUBCONTRIB_CONTEXTS_INSTALL_DIR}/gazeStabilization)
 yarp_install(FILES ${scripts} DESTINATION ${ICUBCONTRIB_APPLICATIONS_TEMPLATES_INSTALL_DIR})
