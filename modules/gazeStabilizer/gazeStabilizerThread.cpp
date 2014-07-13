@@ -7,8 +7,8 @@
 
 #define GYRO_BIAS_STABILITY                 4.0     // [deg/s]
 
-gazeStabilizerThread::gazeStabilizerThread(int _rate, string _name, string _robot, int _v,
-                                           string _if_mode, string _src_mode, string _ctrl_mode) :
+gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v,
+                                           string &_if_mode, string &_src_mode, string &_ctrl_mode) :
                                            RateThread(_rate), name(_name), robot(_robot), verbosity(_v),
                                            if_mode(_if_mode), src_mode(_src_mode), ctrl_mode(_ctrl_mode)
 {
@@ -540,7 +540,7 @@ bool gazeStabilizerThread::moveEyes(const Vector &_dq_E)
     return true;
 }
 
-void gazeStabilizerThread::updateEyeChain(iKinChain &_eye, const string _eyeType)
+void gazeStabilizerThread::updateEyeChain(iKinChain &_eye, const string &_eyeType)
 {
     yarp::sig::Vector torso = *encsT;
     yarp::sig::Vector  head = *encsH;
@@ -599,7 +599,7 @@ void gazeStabilizerThread::updateIMUChain(iKinChain &_imu)
     _imu.setAng(q);
 }
 
-bool gazeStabilizerThread::areJointsHealthyAndSet(VectorOf<int> &jointsToSet,const string _s)
+bool gazeStabilizerThread::areJointsHealthyAndSet(VectorOf<int> &jointsToSet,const string &_s)
 {
     VectorOf<int> modes(encsH->size());
     imodH->getControlModes(modes.getFirst());
@@ -625,7 +625,7 @@ bool gazeStabilizerThread::areJointsHealthyAndSet(VectorOf<int> &jointsToSet,con
     return true;
 }
 
-bool gazeStabilizerThread::setHeadCtrlModes(const VectorOf<int> &jointsToSet,const string _s)
+bool gazeStabilizerThread::setHeadCtrlModes(const VectorOf<int> &jointsToSet,const string &_s)
 {
     if (_s!="position" || _s!="velocity")
         return false;
@@ -799,6 +799,17 @@ void gazeStabilizerThread::threadRelease()
             eyeL = NULL;
         }
 
+        if (neck)
+        {
+            delete neck;
+            neck = NULL;
+        }
+
+        if (IMU)
+        {
+            delete IMU;
+            IMU = NULL;
+        }
 }
 
 // empty line to make gcc happy
