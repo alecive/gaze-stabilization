@@ -53,7 +53,7 @@ void gazeEvaluatorThread::run()
         {
             *imageIn=*tmp;
         }
-        // 2A - Put the read image into imgInNext
+        // 2A - Put the read imag into imgInNext
         imgInNext = (IplImage*) imageIn->getIplImage();
 
         // 2B - Smooth it out
@@ -245,7 +245,12 @@ void gazeEvaluatorThread::closePort(Contactable *_port)
 void gazeEvaluatorThread::threadRelease()
 {
     printMessage(0,"Closing ports...\n");
-        imgPortIn  -> close();
+        closePort(imgPortIn);
+        if(imageIn)
+        {
+            delete imageIn;
+            imageIn = NULL;
+        }
 }
 
 // empty line to make gcc happy
