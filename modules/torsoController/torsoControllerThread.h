@@ -83,7 +83,6 @@ protected:
     int jntsT;
 
     double timeNow;
-    int     cmdcnt;
     std::vector <yarp::sig::Vector> ctrlCommands;
 
     std::vector<wayPoint> wayPoints;

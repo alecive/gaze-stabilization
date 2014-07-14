@@ -57,7 +57,6 @@ torsoControllerThread::torsoControllerThread(int _rate, string _name, string _ro
                                            RateThread(_rate), name(_name), robot(_robot), verbosity(_v), numWaypoints(_nW)
 {
     timeNow = yarp::os::Time::now();
-    cmdcnt  = -2;
     ResourceFinder &rf = const_cast<ResourceFinder&>(_rf);
     step               = 0;
     currentWaypoint    = 0;
