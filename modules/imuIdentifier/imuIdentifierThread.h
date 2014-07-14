@@ -91,7 +91,10 @@ protected:
     int            step;    // Flag to know in which step the thread is
 
     Port      outPort;
-    RpcClient GSrpcPort;
+    BufferedPort<Bottle>  *inIMUPort;     // port for reading from the inertial sensor
+    Bottle                *inIMUBottle;   // bottle used for the port
+
+    bool processIMU();
 
     /**
      * Sends the vels of the waypoint under current evaluation to the port AS-THEY-ARE.
@@ -111,6 +114,12 @@ protected:
      * @return    true/false if success/failure
      */
     bool goHome();
+
+    /**
+     * processes a single waypoint as presented in the wayPoints data member
+     * @return true/false if success/failure
+     */
+    bool processWayPoint();
 
     /**
     * Prints a message according to the verbosity level:
