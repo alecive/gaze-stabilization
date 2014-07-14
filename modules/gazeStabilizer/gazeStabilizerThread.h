@@ -111,7 +111,7 @@ protected:
     /**
     * Updates a kinematic chain belonging to an eye.
     **/
-    void updateEyeChain(iKinChain &_eye, const string _eyeType);
+    void updateEyeChain(iKinChain &_eye, const string &_eyeType);
 
     /**
     * Updates a kinematic chain belonging to the neck.
@@ -155,14 +155,14 @@ protected:
      * @param  _s mode to set. It can be either "position" or "velocity"
      * @return             true/false if success/failure
      */
-    bool areJointsHealthyAndSet(VectorOf<int> &jointsToSet,const string _s);
+    bool areJointsHealthyAndSet(VectorOf<int> &jointsToSet,const string &_s);
 
     /**
      * Changes the control modes of the torso to either position or velocity
      * @param  _s mode to set. It can be either "position" or "velocity"
      * @return    true/false if success/failure
      */
-    bool setHeadCtrlModes(const VectorOf<int> &jointsToSet,const string _s);
+    bool setHeadCtrlModes(const VectorOf<int> &jointsToSet,const string &_s);
 
     /**
     * Prints a message according to the verbosity level:
@@ -178,7 +178,7 @@ protected:
 
 public:
     // CONSTRUCTOR
-    gazeStabilizerThread(int _rate, string _name, string _robot, int _v, string _if_mode, string _src_mode, string _ctrl_mode);
+    gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v, string &_if_mode, string &_src_mode, string &_ctrl_mode);
     // INIT
     virtual bool threadInit();
     // RUN
