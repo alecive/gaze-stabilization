@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <iomanip>
 
-#define GYRO_BIAS_STABILITY                 4.0     // [deg/s]
+#define GYRO_BIAS_STABILITY                 5.0     // [deg/s]
 
 gazeStabilizerThread::gazeStabilizerThread(int _rate, string _name, string _robot, int _v,
                                            string _if_mode, string _src_mode, string _ctrl_mode) :
