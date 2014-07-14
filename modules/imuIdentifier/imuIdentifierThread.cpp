@@ -131,6 +131,7 @@ bool imuIdentifierThread::threadInit()
         ok = ok && ddH.view(ivelH);
         ok = ok && ddH.view(iencsH);
         ok = ok && ddH.view(imodH);
+        ok = ok && ddH.view(ipidH);
     }
 
     if (!ok)
@@ -141,6 +142,9 @@ bool imuIdentifierThread::threadInit()
 
     iencsH -> getAxes(&jntsH);
     encsH = new Vector(jntsH,0.0);
+
+    Vector headAcc(jntsH,1e9);
+    ivelH -> setRefAccelerations(headAcc.data());
 
     return true;
 }
@@ -185,6 +189,8 @@ void imuIdentifierThread::run()
 
 bool imuIdentifierThread::setHeadCtrlModes(const string _s)
 {
+    printMessage(1,"Setting %s mode for head joints..\n",_s.c_str());
+
     if (_s!="position" || _s!="velocity")
         return false;
 
@@ -223,6 +229,8 @@ bool imuIdentifierThread::processIMU()
         double gyrY = inIMUBottle -> get(7).asDouble(); w[1] = gyrY;
         double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ;
 
+        iencsH->getEncoders(encsH->data());
+
         printMessage(1,"Gyro: \t%s\n",w.toString(3,3).c_str());
 
         Bottle b;
@@ -233,8 +241,19 @@ bool imuIdentifierThread::processIMU()
         }
         for (size_t i = 0; i < 3; i++)
         {
+            double ref;
+            ipidH->getReference(i,&ref);
+            b.addDouble(ref);
+        }
+        for (size_t i = 0; i < 3; i++)
+        {
+            b.addDouble((*encsH)(i));
+        }
+        for (size_t i = 0; i < 3; i++)
+        {
             b.addDouble(w(i));
         }
+
         outPort.write(b);
 
         return true;

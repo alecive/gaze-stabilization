@@ -8,6 +8,8 @@ project(gazeEvaluator)
 file(GLOB source *.cpp)
 file(GLOB header *.h)
 
+find_package(OpenCV REQUIRED)
+
 include_directories(${YARP_INCLUDE_DIRS})
 include_directories(${ICUB_INCLUDE_DIRS})
 include_directories(${OpenCV_INCLUDE_DIRS})

@@ -75,11 +75,12 @@ protected:
 
     // Classical interfaces - HEAD
     PolyDriver          ddH;   // head device driver
-    IPositionControl   *iposH;
+    IPositionControl2  *iposH;
     IVelocityControl2  *ivelH;
     IEncoders          *iencsH;
     IControlMode2      *imodH;
     Vector             *encsH;
+    IPidControl        *ipidH;
     int jntsH;
 
     double timeNow;

@@ -31,7 +31,7 @@ This is a module for implementing the GAZE STABILIZER on the iCub.
 It tests the positions of the chessboard's corners on both the image planes.
 
 \section lib_sec Libraries 
-YARP and OpenCV
+YARP and iCub
 
 \section parameters_sec Parameters
 
