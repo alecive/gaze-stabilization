@@ -255,7 +255,7 @@ class gazeStabilizer: public RFModule
             int    rate      =               10; // rate of the gazeStabilizerThread
             string if_mode   =           "vel2"; // it can be either vel1 or vel2
             string src_mode  =       "inertial"; // it can be either torso or inertial or wholeBody
-            string ctrl_mode =           "eyes"; // it can be either eyes or eyesHead
+            string ctrl_mode =           "eyes"; // it can be either eyes or headEyes
 
             //******************* NAME ******************
                 if (rf.check("name"))
@@ -317,7 +317,7 @@ class gazeStabilizer: public RFModule
             //************** CONTROL_MODE **************
                 if (rf.check("ctrl_mode"))
                 {
-                    if (rf.find("ctrl_mode").asString() == "eyes" || rf.find("ctrl_mode").asString() == "eyesHead")
+                    if (rf.find("ctrl_mode").asString() == "eyes" || rf.find("ctrl_mode").asString() == "headEyes")
                     {
                         ctrl_mode = rf.find("ctrl_mode").asString();
                         printf(("*** "+name+": ctrl_mode set to %s\n").c_str(),ctrl_mode.c_str());
@@ -388,7 +388,7 @@ int main(int argc, char * argv[])
         cout << "   --if_mode    mode:   interface to use for velocity control (either vel1 or vel2, default vel2)." << endl;
         cout << "   --src_mode   source: source to use for compensating (either torso, inertial, or wholeBody; default torso)." << endl;
         cout << "   --ctrl_mode  ctrl:   control to use for deploying the compensation" << endl;
-        cout << "                        (either eyes or eyesHead; default eyesHead)." << endl;
+        cout << "                        (either eyes or headEyes; default headEyes)." << endl;
         cout << endl;
         return 0;
     }

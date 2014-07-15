@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <iomanip>
 
-#define GYRO_BIAS_STABILITY                 5.0     // [deg/s]
+#define GYRO_BIAS_STABILITY                 3.0     // [deg/s]
 
 gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v,
                                            string &_if_mode, string &_src_mode, string &_ctrl_mode) :
@@ -48,6 +48,27 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_ro
     J_E.resize(3,3);
     J_E.zero();
     dq_T.resize(3,0.0);
+    dx_FP.resize(6,0.0);
+    dx_FP_filt.resize(6,0.0);
+
+    // Create the filter
+    y0.resize(3,0.0);
+
+    num.resize(5,0.0);
+    num(0) = 8.984861463970645e-07;
+    num(1) = 3.593944585588258e-06;
+    num(2) = 5.390916878382387e-06;
+    num(3) = 3.593944585588258e-06;
+    num(4) = 8.984861463970645e-07;
+
+    den.resize(5,0.0);
+    den(0) =                     1;
+    den(1) =    -3.835825540647348;
+    den(2) =     5.520819136622227;
+    den(3) =    -3.533535219463014;
+    den(4) =     0.848555999266477;
+
+    filt = new Filter(num,den,y0);
 
     isRunning = false;
 }
@@ -157,10 +178,10 @@ void gazeStabilizerThread::run()
         iencsH->getEncoders(encsH->data());
 
         // 2 - Update the iCubHeadCenter, eyeR and eyeL with those values
-        updateEyeChain(*chainEyeL,"left");
-        updateEyeChain(*chainEyeR,"right");
+        updateEyeChain (*chainEyeL,"left");
+        updateEyeChain (*chainEyeR,"right");
         updateNeckChain(*chainNeck);
-        updateIMUChain(*chainIMU);
+        updateIMUChain (*chainIMU);
         printMessage(2,"EyeL: %s\n",(CTRL_RAD2DEG*(eyeL->getAng())).toString(3,3).c_str());
         printMessage(2,"EyeR: %s\n",(CTRL_RAD2DEG*(eyeR->getAng())).toString(3,3).c_str());
         printMessage(2,"Neck: %s\n",(CTRL_RAD2DEG*(neck->getAng())).toString(3,3).c_str());
@@ -175,18 +196,22 @@ void gazeStabilizerThread::run()
 
             // At this point, compute the source-dependent tasks:
             // First thing, compute the velocity of the fixation point. It is source dependent:
-            Vector dx_FP(6,0.0);
+            dx_FP.resize(6,0.0);
+            dx_FP_filt.resize(6,0.0);
+
             if (src_mode == "torso")
             {
                 compute_dxFP_torsoMode(dx_FP);
+                dx_FP_filt = dx_FP;
             }
             else if (src_mode == "inertial")
             {
-                compute_dxFP_inertialMode(dx_FP);
+                compute_dxFP_inertialMode(dx_FP,dx_FP_filt);
             }
             else if (src_mode == "wholeBody")
             {
                 compute_dxFP_wholeBodyMode(dx_FP);
+                dx_FP_filt = dx_FP;
             }
             printMessage(0,"dx_FP:\t%s\n", dx_FP.toString(3,3).c_str());
 
@@ -198,11 +223,11 @@ void gazeStabilizerThread::run()
                 printMessage(0,"dq_E:\t%s\n\n", dq_E.toString(3,3).c_str());
                 moveEyes(dq_E);
             }
-            else if (ctrl_mode == "eyesHead")
+            else if (ctrl_mode == "headEyes")
             {
-                Vector dq_EH=stabilizeEyesHead(dx_FP);
-                printMessage(0,"dq_EH:\t%s\n\n", dq_EH.toString(3,3).c_str());
-                moveEyesHead(dq_EH);
+                Vector dq_HE=stabilizeHeadEyes(dx_FP,dx_FP_filt);
+                printMessage(0,"dq_HE:\t%s\n\n", dq_HE.toString(3,3).c_str());
+                moveHeadEyes(dq_HE);
             }
         }
         else
@@ -225,11 +250,14 @@ Vector gazeStabilizerThread::stabilizeEyes(const Vector &_dx_FP)
     return dq_E;
 }
 
-Vector gazeStabilizerThread::stabilizeEyesHead(const Vector &_dx_FP)
+Vector gazeStabilizerThread::stabilizeHeadEyes(const Vector &_dx_FP, const Vector &_dx_FP_filt)
 {
     // 0  - Take only the rotational part of the velocity of the
     //      fixation point, because we will only compensate that with the head
-    Vector dx_FP = _dx_FP.subVector(3,5);
+    Vector dx_FP = _dx_FP_filt.subVector(3,5);
+    // Filter the velocity in order to smooth it out for the head
+    
+    printMessage(0,"dx_FP_filtered: %s\n",dx_FP.toString().c_str());
 
     // 1  - Convert x_FP from root to RF_E
     Matrix H_RE = chainNeck->getH();        // matrix from root to RF_E
@@ -257,12 +285,12 @@ Vector gazeStabilizerThread::stabilizeEyesHead(const Vector &_dx_FP)
     // 2D - remove the fixation point from the neck chain
     chainNeck -> setHN(eye(4,4));
 
-    // 3 - Compute dq_EH = J_H# * dx_FP  
+    // 3 - Compute dq_HE = J_H# * dx_FP  
     Matrix J_H_pinv = pinv(J_Hp); 
 
     Vector dq_H = -CTRL_RAD2DEG * (J_H_pinv * dx_FP);
-    Vector dq_EH(6,0.0);
-    dq_EH.setSubvector(0,dq_H);
+    Vector dq_HE(6,0.0);
+    dq_HE.setSubvector(0,dq_H);
 
     Vector dq_TH(6,0.0);
     dq_TH.setSubvector(0,dq_T);
@@ -282,9 +310,9 @@ Vector gazeStabilizerThread::stabilizeEyesHead(const Vector &_dx_FP)
         dq_E=stabilizeEyes(_dx_FP);
     }
 
-    dq_EH.setSubvector(3,dq_E);
+    dq_HE.setSubvector(3,dq_E);
 
-    return dq_EH;
+    return dq_HE;
 }
 
 bool gazeStabilizerThread::compute_dxFP_wholeBodyMode(Vector &_dx_FP)
@@ -340,7 +368,7 @@ bool gazeStabilizerThread::compute_dxFP_wholeBodyMode(Vector &_dx_FP)
     }
 }
 
-bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP)
+bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx_FP_filt)
 {
     /*
     * Conceptual recap:
@@ -356,39 +384,15 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP)
         // 4  - Read data from the inertial sensor
         //     (if there is no data, nothing is commanded)
         Vector w(3,0.0);
+        Vector w_filt(3,0.0);
         double gyrX = inIMUBottle -> get(6).asDouble(); w[0] = gyrX;
         double gyrY = inIMUBottle -> get(7).asDouble(); w[1] = gyrY;
         double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ;
 
-        printMessage(0,"Gyro: \t%s\n",w.toString(3,3).c_str());
-        // 5  - Compute the lever arm between the fixation point and the IMU
-        Matrix H = IMU -> getH();
-        H(0,3) = xFP_R[0]-H(0,3);
-        H(1,3) = xFP_R[1]-H(1,3);
-        H(2,3) = xFP_R[2]-H(2,3);
+        w_filt = filt->filt(w);
+        _dx_FP      = compute_dxFP_inertial(w);
+        _dx_FP_filt = compute_dxFP_inertial(w_filt);
 
-        // 6A - Filter out the noise on the gyro readouts
-        Vector dx_FP(3,0.0);
-        if ((fabs(gyrX)<GYRO_BIAS_STABILITY) && (fabs(gyrY)<GYRO_BIAS_STABILITY) &&
-            (fabs(gyrZ)<GYRO_BIAS_STABILITY))
-            dx_FP.resize(J_E.rows(),0.0);
-        // 6B - Do the magic 
-        else
-        {
-            dx_FP=CTRL_DEG2RAD*(gyrX*cross(H,0,H,3)+gyrY*cross(H,1,H,3)+gyrZ*cross(H,2,H,3));
-
-            _dx_FP.setSubvector(0, dx_FP);
-
-            H(0,3) = 0;
-            H(1,3) = 0;
-            H(2,3) = 0;
-
-            // printMessage(0,"w: \t%s\tH:\n%s\n",w.toString(3,3).c_str(),H.toString(3,3).c_str());
-            w.push_back(1.0);
-            w = CTRL_DEG2RAD * H*w;
-            w.pop_back();
-            _dx_FP.setSubvector(3, w);
-        }
         return true;
     }
     else
@@ -430,6 +434,46 @@ bool gazeStabilizerThread::compute_dxFP_torsoMode(Vector &_dx_FP)
     }
 }
 
+Vector gazeStabilizerThread::compute_dxFP_inertial(Vector &_gyro)
+{
+    printMessage(0,"Gyro: \t%s\n",_gyro.toString(3,3).c_str());
+
+    double gyrX = _gyro(0);
+    double gyrY = _gyro(1);
+    double  gyrZ = _gyro(2);
+    Vector _dx_FP(6,0.0);
+
+    // 5  - Compute the lever arm between the fixation point and the IMU
+    Matrix H = IMU -> getH();
+    H(0,3) = xFP_R[0]-H(0,3);
+    H(1,3) = xFP_R[1]-H(1,3);
+    H(2,3) = xFP_R[2]-H(2,3);
+
+    // 6A - Filter out the noise on the gyro readouts
+    Vector dx_FP(3,0.0);
+    if ((fabs(gyrX)<GYRO_BIAS_STABILITY) && (fabs(gyrY)<GYRO_BIAS_STABILITY) &&
+        (fabs(gyrZ)<GYRO_BIAS_STABILITY))
+        dx_FP.resize(J_E.rows(),0.0);
+    // 6B - Do the magic 
+    else
+    {
+        dx_FP=CTRL_DEG2RAD*(gyrX*cross(H,0,H,3)+gyrY*cross(H,1,H,3)+gyrZ*cross(H,2,H,3));
+
+        _dx_FP.setSubvector(0, dx_FP);
+
+        H(0,3) = 0;
+        H(1,3) = 0;
+        H(2,3) = 0;
+
+        // printMessage(0,"w: \t%s\tH:\n%s\n",w.toString(3,3).c_str(),H.toString(3,3).c_str());
+        _gyro.push_back(1.0);
+        _gyro = CTRL_DEG2RAD * H * _gyro;
+        _gyro.pop_back();
+        _dx_FP.setSubvector(3, _gyro);
+    }
+    return _dx_FP;
+}
+
 Vector gazeStabilizerThread::compute_dxFP_kinematics(Vector &_dq)
 {
     if (_dq.size() != 6)
@@ -459,7 +503,7 @@ Vector gazeStabilizerThread::compute_dxFP_kinematics(Vector &_dq)
     return J_TH * _dq;
 }
 
-bool gazeStabilizerThread::moveEyesHead(const Vector &_dq_EH)
+bool gazeStabilizerThread::moveHeadEyes(const Vector &_dq_HE)
 {
     VectorOf<int> jointsToSet;
     if (!areJointsHealthyAndSet(jointsToSet,"velocity"))
@@ -481,13 +525,13 @@ bool gazeStabilizerThread::moveEyesHead(const Vector &_dq_EH)
     if (if_mode == "vel2")
     {
         int nJnts = 3;
-        ivelH2 -> velocityMove(nJnts,Ejoints.data(),_dq_EH.data());
+        ivelH2 -> velocityMove(nJnts,Ejoints.data(),_dq_HE.data());
     }
     else if (if_mode == "vel1")
     {
-        ivelH1 -> velocityMove(Ejoints[0],_dq_EH(0));
-        ivelH1 -> velocityMove(Ejoints[1],_dq_EH(1));
-        ivelH1 -> velocityMove(Ejoints[2],_dq_EH(2));
+        ivelH1 -> velocityMove(Ejoints[0],_dq_HE(0));
+        ivelH1 -> velocityMove(Ejoints[1],_dq_HE(1));
+        ivelH1 -> velocityMove(Ejoints[2],_dq_HE(2));
     }
     else
     {
@@ -496,7 +540,7 @@ bool gazeStabilizerThread::moveEyesHead(const Vector &_dq_EH)
     }
 
     // Move the eyes
-    moveEyes(_dq_EH.subVector(3,5));
+    moveEyes(_dq_HE.subVector(3,5));
 
     return true;
 }
@@ -681,7 +725,7 @@ bool gazeStabilizerThread::set_src_mode(const string &_srcm)
 
 bool gazeStabilizerThread::set_ctrl_mode(const string &_ctrlm)
 {
-    if (_ctrlm == "eyes" || _ctrlm == "eyesHead")
+    if (_ctrlm == "eyes" || _ctrlm == "headEyes")
     {
         ctrl_mode = _ctrlm;
         return true;
@@ -809,6 +853,12 @@ void gazeStabilizerThread::threadRelease()
         {
             delete IMU;
             IMU = NULL;
+        }
+
+        if (filt)
+        {
+            delete filt;
+            filt = NULL;
         }
 }
 

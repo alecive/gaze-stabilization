@@ -62,7 +62,7 @@ protected:
     string robot;       // Name of the robot (to address both icub and icubSim)
     string if_mode;     // Interface mode to use (either vel1 or vel2)
     string src_mode;    // Source to use (either torso velocities through a port or the inertial sensor)
-    string ctrl_mode;   // Control to use (either only "eyes" or "eyesHead")
+    string ctrl_mode;   // Control to use (either only "eyes" or "headEyes")
 
     // Classical interfaces - HEAD
     PolyDriver         *ddH;    // head device driver
@@ -92,11 +92,19 @@ protected:
     iKinChain           *chainEyeR;
     iKinChain           *chainIMU;
 
+    // LowPass filter for IMU signal
+    iCub::ctrl::Filter *filt;
+    Vector num;
+    Vector den;
+    Vector y0;
+
     // Internal matrices and variables
     Vector xFP_R;
     Matrix J_E;
     bool isRunning;         // Flag to manage the status of the thread
     Vector dq_T;
+    Vector dx_FP;
+    Vector dx_FP_filt;
 
     // Input from the torsoController
     BufferedPort<Bottle>  *inTorsoPort;   // port for reading from the torsoController
@@ -129,7 +137,7 @@ protected:
     * the velocity of the fixation point (listed below)
     **/
     bool compute_dxFP_torsoMode(Vector &_dx_FP);
-    bool compute_dxFP_inertialMode(Vector &_dx_FP);
+    bool compute_dxFP_inertialMode(Vector &_dx_FP,Vector &_dx_FP_filt);
     bool compute_dxFP_wholeBodyMode(Vector &_dx_FP);
 
     /**
@@ -138,16 +146,23 @@ protected:
     Vector compute_dxFP_kinematics(Vector &_dq);
 
     /**
+     * computes the velocity of the fixation point given the gyro measurements
+     * @param  _gyro [description]
+     * @return       [description]
+     */
+    Vector compute_dxFP_inertial(Vector &_gyro);
+
+    /**
     * Two different gaze stabilization techniques: either eyes, or eyes + head
     **/
     Vector stabilizeEyes(const Vector &_dx_FP);
-    Vector stabilizeEyesHead(const Vector &_dx_FP);
+    Vector stabilizeHeadEyes(const Vector &_dx_FP, const Vector &_dx_FP_filt);
 
     /**
     *
     **/
     bool moveEyes(const Vector &_dq_E);
-    bool moveEyesHead(const Vector &_dq_EH);
+    bool moveHeadEyes(const Vector &_dq_HE);
 
     /**
      * Check the state of each joint to be controlled
