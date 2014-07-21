@@ -6,7 +6,7 @@
 #include <iomanip>
 
 #define GYRO_BIAS_STABILITY                 5.0     // [deg/s]
-#define PIXELS_TO_DISCARD                  20.0
+#define PIXELS_TO_DISCARD                  50.0
 
 gazeEvaluatorThread::gazeEvaluatorThread(int _rate, string _name, string _robot, int _v) :
                                            RateThread(_rate), name(_name), robot(_robot), verbosity(_v)
