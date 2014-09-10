@@ -90,8 +90,8 @@ protected:
     int    numWaypoints;
     int            step;    // Flag to know in which step the thread is
 
-    Port      outPort;
-    RpcClient GSrpcPort;
+    BufferedPort<Bottle> *outPort;
+    RpcClient             GSrpcPort;
 
     bool processWayPoint();
 

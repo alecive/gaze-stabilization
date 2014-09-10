@@ -61,6 +61,8 @@ torsoControllerThread::torsoControllerThread(int _rate, string _name, string _ro
     step               = 0;
     currentWaypoint    = 0;
 
+    outPort     = new BufferedPort<Bottle>;
+
     //******************* ITERATIONS ******************
     iterations=rf.check("iterations",Value(1)).asInt();
     printf(("*** "+name+": number of iterations set to %g\n").c_str(),iterations);
@@ -104,7 +106,7 @@ torsoControllerThread::torsoControllerThread(int _rate, string _name, string _ro
 
 bool torsoControllerThread::threadInit()
 {
-    outPort.open(("/"+name+"/gazeStabilizer:o").c_str());
+    outPort->open(("/"+name+"/gazeStabilizer:o").c_str());
     GSrpcPort.open(("/"+name+"/rpc:o").c_str());
     Network::connect(("/"+name+"/gazeStabilizer:o").c_str(),"/gazeStabilizer/torsoController:i");
     Network::connect(("/"+name+"/rpc:o").c_str(),"/gazeStabilizer/rpc:i");
@@ -309,13 +311,13 @@ void torsoControllerThread::gateStabilization(const string _g)
 
 void torsoControllerThread::sendCommand()
 {
-    Bottle b;
+    Bottle &b=outPort->prepare();
     b.clear();
     for (size_t i = 0; i < 3; i++)
     {
         b.addDouble(wayPoints[currentWaypoint].vels(i));
     }
-    outPort.write(b);
+    outPort->write();
 }
 
 int torsoControllerThread::printMessage(const int l, const char *f, ...) const
@@ -358,6 +360,9 @@ void torsoControllerThread::threadRelease()
 
     printMessage(0,"Closing controllers..\n");
         ddT.close();
+
+    printMessage(0,"Closing ports...\n");
+        closePort(outPort);
 }
 
 // empty line to make gcc happy
