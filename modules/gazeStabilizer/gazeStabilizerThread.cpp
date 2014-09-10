@@ -192,8 +192,7 @@ void gazeStabilizerThread::run()
             printMessage(1,"xFP_R:\t%s\n", xFP_R.toString(3,3).c_str());
             printMessage(1,"J_E:\n%s\n\n",   J_E.toString(3,3).c_str());
 
-            // At this point, compute the source-dependent tasks:
-            // First thing, compute the velocity of the fixation point. It is source dependent:
+            // First thing, compute the velocity of the fixation point. It is src_mode dependent:
             dx_FP.resize(6,0.0);
             dx_FP_filt.resize(6,0.0);
 
@@ -404,11 +403,9 @@ bool gazeStabilizerThread::compute_dxFP_torsoMode(Vector &_dx_FP)
 {
     /*
     * Conceptual recap:
-    * 4 - Read dq_H and dq_T (for now only dq_T;
-    *     if there is no dq_T, nothing is commanded)
-    * 5 - Convert x_FP from root to RF_E
-    * 6 - SetHN() with x_FP
-    * 7 - Compute dx_FP = J_TH * [dq_T ; dq_H]
+    * 4  - Read dq_H and dq_T (for now only dq_T;
+    *      if there is no dq_T, nothing is commanded)
+    * 4B - Compute dx_FP with compute_dxFP_kinematics
     */
     dq_T.resize(3,0.0);
 
@@ -422,6 +419,7 @@ bool gazeStabilizerThread::compute_dxFP_torsoMode(Vector &_dx_FP)
         dq_T[0] = inTorsoBottle->get(2).asDouble();
         dq.setSubvector(0,CTRL_DEG2RAD * dq_T);
 
+        // 4B - Compute dx_FP with compute_dxFP_kinematics
         _dx_FP = compute_dxFP_kinematics(dq);
         return true;
     }
@@ -467,6 +465,8 @@ Vector gazeStabilizerThread::compute_dxFP_inertial(Vector &_gyro)
         _gyro.push_back(1.0);
         _gyro = CTRL_DEG2RAD * H * _gyro;
         _gyro.pop_back();
+
+        // 7 - Compute dx_FP
         _dx_FP.setSubvector(3, _gyro);
     }
     return _dx_FP;
