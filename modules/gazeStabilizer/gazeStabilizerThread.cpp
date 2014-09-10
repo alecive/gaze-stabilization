@@ -801,9 +801,6 @@ void gazeStabilizerThread::threadRelease()
         // goHome();
 
     printMessage(0,"Closing ports...\n");
-        // inTorsoPort-> close();
-        // inIMUPort  -> close();
-        // inWBPort   -> close();
         closePort(inTorsoPort);
         closePort(inIMUPort);
         closePort(inWBPort);
