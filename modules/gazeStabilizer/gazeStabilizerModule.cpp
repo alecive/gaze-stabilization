@@ -1,5 +1,5 @@
 /* 
- * Copyright (C) 2013 iCub Facility - Istituto Italiano di Tecnologia
+ * Copyright (C) 2014 iCub Facility - Istituto Italiano di Tecnologia
  * Author: Alessandro Roncone
  * email:  alessandro.roncone@iit.it
  * Permission is granted to copy, distribute, and/or modify this program
@@ -16,19 +16,18 @@
 */
 
 /**
-\defgroup icub_gazeStabilizer gazeStabilizer
+\mainpage Gaze Stabilization for the iCub Humanoid Robot
+\defgroup icub_gazeStabilizer GazeStabilization
 @ingroup icub_contrib_modules
 
 A module for implementing the GAZE STABILIZER on the iCub.
-It tests the positions of the chessboard's corners on both the image planes.
 
-Date first release: 13/11/2013
+Date first release: 07/07/2014
 
 CopyPolicy: Released under the terms of the GNU GPL v2.0.
 
 \section intro_sec Description
 This is a module for implementing the GAZE STABILIZER on the iCub.
-It tests the positions of the chessboard's corners on both the image planes.
 
 \section lib_sec Libraries 
 YARP and iCub
@@ -55,34 +54,16 @@ YARP and iCub
 - Verbosity level (default 1). The higher is the verbosity, the more
   information is printed out.
 
---type		 \e type
-- The type of task (default '0').
-  It's deprecated, but kept for retrocompatibility and for eventual future use.
-
 \section portsc_sec Ports Created
-- <i> /<name>/imgL:i </i> port that receives input from the left  camera
-- <i> /<name>/imgR:i </i> port that receives input from the right camera
-- <i> /<name>/imgL:o </i> port that sends the output of the left  camera
-- <i> /<name>/imgR:o </i> port that sends the output of the right camera
-- <i> /<name>/disp:i </i> port that receives the stereoDisparity
-- <i> /<name>/disp:o </i> port that sends the stereoDisparity output
+
 
 \section in_files_sec Input Data Files
 None.
 
 \section out_data_sec Output Data Files
-- <i> left_START.png </i>  left  image acquired at the beginning of the test 
-- <i> right_START.png </i> right image acquired at the beginning of the test
-- <i> results.log </i>     log file. It stores the shift (on the x and y axis)
-		in both the left and right images for any of the 48 corners detected, the
-		configuration file used, some statistics on the errors (min, max, avg), and
-		the values of the encoders at the beginning and the end of the test (they 
-		should usually be equal).
-- <i> left_END.png </i>    left  image acquired at the end of the test
-- <i> right_END.png </i>   right image acquired at the end of the test
  
 \section tested_os_sec Tested OS
-Linux (Ubuntu 12.04, Debian Squeeze).
+Linux (Ubuntu 14.04, Debian Wheezy).
 
 \author Alessandro Roncone
 */ 
@@ -371,24 +352,24 @@ class gazeStabilizer: public RFModule
 int main(int argc, char * argv[])
 {
     ResourceFinder rf;
-    rf.setVerbose(true);
-    rf.setDefaultContext("gazeStabilizer");
+    rf.setVerbose(false);
+    rf.setDefaultContext("gazeStabilization");
     rf.setDefaultConfigFile("gazeStabilizer.ini");
     rf.configure(argc,argv);
 
     if (rf.check("help"))
     {    
         cout << endl << "Options:" << endl;
-        cout << "   --context    path:   where to find the called resource" << endl;
-        cout << "   --from       from:   the name of the .ini file." << endl;
-        cout << "   --name       name:   the name of the module (default gazeStabilizer)." << endl;
+        cout << "   --context    path:   where to find the called resource. Default gazeStabilization." << endl;
+        cout << "   --from       from:   the name of the .ini file. Default gazeStabilizer.ini" << endl;
+        cout << "   --name       name:   the name of the module. Default gazeStabilizer." << endl;
         cout << "   --robot      robot:  the name of the robot. Default icub." << endl;
-        cout << "   --rate       rate:   the period used by the thread. Default 100ms." << endl;
-        cout << "   --verbosity  int:    verbosity level (default 1)." << endl;
-        cout << "   --if_mode    mode:   interface to use for velocity control (either vel1 or vel2, default vel2)." << endl;
-        cout << "   --src_mode   source: source to use for compensating (either torso, inertial, or wholeBody; default torso)." << endl;
-        cout << "   --ctrl_mode  ctrl:   control to use for deploying the compensation" << endl;
-        cout << "                        (either eyes or headEyes; default headEyes)." << endl;
+        cout << "   --rate       rate:   the period used by the thread. Default 10ms." << endl;
+        cout << "   --verbosity  int:    verbosity level. Default 0." << endl;
+        cout << "   --if_mode    mode:   interface to use for velocity control. It can be either vel1 or vel2, default vel2." << endl;
+        cout << "   --src_mode   source: source to use for compensating. It can be either torso, inertial, or wholeBody; default torso." << endl;
+        cout << "   --ctrl_mode  ctrl:   control to use for deploying the compensation." << endl;
+        cout << "                        It can be either eyes or headEyes; default headEyes." << endl;
         cout << endl;
         return 0;
     }
