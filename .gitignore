@@ -1,10 +1,10 @@
-<<<<<<< HEAD
+# Custom stuff
 build
 .nfs*
 *~
 *kdev*
 .svn
-=======
+
 # Compiled Object files
 *.slo
 *.lo
@@ -33,4 +33,3 @@ build
 *.exe
 *.out
 *.app
->>>>>>> 5c339f1ed811c23ca5cc67a2c720d6b7202ec38c
