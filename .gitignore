@@ -1,5 +1,36 @@
+<<<<<<< HEAD
 build
 .nfs*
 *~
 *kdev*
 .svn
+=======
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+>>>>>>> 5c339f1ed811c23ca5cc67a2c720d6b7202ec38c
