@@ -102,6 +102,9 @@ protected:
     Vector xFP_R;
     Matrix J_E;
     bool isRunning;         // Flag to manage the status of the thread
+    bool isIMUCalibrated;   // Flag to manage if the IMU has been calibrated or not
+    std::vector<Vector> IMUCalib;
+    
     Vector dq_T;
     Vector dx_FP;
     Vector dx_FP_filt;
@@ -163,6 +166,12 @@ protected:
     **/
     bool moveEyes(const Vector &_dq_E);
     bool moveHeadEyes(const Vector &_dq_HE);
+
+    /**
+     * [calibrateIMUmeasurements description]
+     * @return [description]
+     */
+    bool calibrateIMUMeasurements();
 
     /**
      * Check the state of each joint to be controlled

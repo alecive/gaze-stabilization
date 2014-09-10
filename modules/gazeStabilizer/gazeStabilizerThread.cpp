@@ -69,6 +69,7 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_ro
     filt = new Filter(num,den,y0);
 
     isRunning = false;
+    isIMUCalibrated = false;
 }
 
 bool gazeStabilizerThread::threadInit()
@@ -163,13 +164,15 @@ bool gazeStabilizerThread::threadInit()
 
 void gazeStabilizerThread::run()
 {
+    isIMUCalibrated = calibrateIMUMeasurements();
+
     /*
     * Conceptual recap:
     * 1 - Read encoders for torso and head
     * 2 - Update the iCubHeadCenter, eyeR and eyeL with those values
     * 3 - Compute Fixation Point Data (x_FP and J_E)
     */
-    if (isRunning)
+    if (isRunning && isIMUCalibrated)
     {
         // 1 - Read the encoders for torso and head
         iencsT->getEncoders(encsT->data());
@@ -232,6 +235,45 @@ void gazeStabilizerThread::run()
             printMessage(0,"computeFixationPointData() returned false!\n");
         }
     }
+}
+
+bool gazeStabilizerThread::calibrateIMUMeasurements()
+{
+    if (inIMUBottle = inIMUPort->read(false))
+    {
+        Vector w(3,0.0);
+        double gyrX = inIMUBottle -> get(6).asDouble(); w[0] = gyrX;
+        double gyrY = inIMUBottle -> get(7).asDouble(); w[1] = gyrY;
+        double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ;
+        IMUCalib.push_back(w);
+
+        if (IMUCalib.size() == 100)
+        {
+            Vector v(3,0.0);
+            for (int i = 0; i < 3; i++)
+            {
+                for (int j = 0; j < IMUCalib.size(); j++)
+                {
+                    v[i] += IMUCalib[j][i];
+                }
+                v[i] /= IMUCalib.size();
+                IMUCalib.clear();
+                IMUCalib.push_back(v);
+            }
+            printMessage(0,"IMU has been calibrated! Calibrated values: %s",IMUCalib[0].toString(3,3).c_str());
+            return true;
+        }
+
+
+        return false;
+    }
+    else
+    {
+        return false;
+    }
+
+    printMessage(1,"Calibrating IMU...");
+    return false;
 }
 
 Vector gazeStabilizerThread::stabilizeEyes(const Vector &_dx_FP)
@@ -694,7 +736,6 @@ bool gazeStabilizerThread::setHeadCtrlModes(const VectorOf<int> &jointsToSet,con
 
     return true;
 }
-
 
 bool gazeStabilizerThread::set_if_mode(const string &_ifm)
 {
