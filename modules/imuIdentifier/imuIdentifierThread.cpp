@@ -59,7 +59,9 @@ imuIdentifierThread::imuIdentifierThread(int _rate, string _name, string _robot,
     ResourceFinder &rf = const_cast<ResourceFinder&>(_rf);
     step               = 0;
     currentWaypoint    = 0;
+
     inIMUPort   = new BufferedPort<Bottle>;
+    outPort     = new BufferedPort<Bottle>;
 
     //******************* ITERATIONS ******************
     iterations=rf.check("iterations",Value(1)).asInt();
@@ -106,8 +108,8 @@ imuIdentifierThread::imuIdentifierThread(int _rate, string _name, string _robot,
 
 bool imuIdentifierThread::threadInit()
 {
-    outPort.open(("/"+name+"/IMU:o").c_str());
-    inIMUPort   -> open(("/"+name+"/inertial:i").c_str());
+    outPort  ->open(("/"+name+"/IMU:o").c_str());
+    inIMUPort->open(("/"+name+"/inertial:i").c_str());
 
     Network::connect(("/"+robot+"/inertial").c_str(),("/"+name+"/inertial:i").c_str());
 
@@ -233,7 +235,7 @@ bool imuIdentifierThread::processIMU()
 
         printMessage(1,"Gyro: \t%s\n",w.toString(3,3).c_str());
 
-        Bottle b;
+        Bottle &b=outPort->prepare();
         b.clear();
         for (size_t i = 0; i < 3; i++)
         {
@@ -253,8 +255,7 @@ bool imuIdentifierThread::processIMU()
         {
             b.addDouble(w(i));
         }
-
-        outPort.write(b);
+        outPort->write();
 
         return true;
     }
@@ -371,6 +372,10 @@ void imuIdentifierThread::threadRelease()
 
     printMessage(0,"Closing controllers..\n");
         ddH.close();
+
+    printMessage(0,"Closing ports...\n");
+        closePort(inIMUPort);
+        closePort(outPort);
 }
 
 // empty line to make gcc happy
