@@ -14,15 +14,20 @@ gazeEvaluatorThread::gazeEvaluatorThread(int _rate, string _name, string _robot,
     imgPortIn = new BufferedPort<ImageOf<PixelRgb> >;
     imageIn   = new ImageOf<PixelRgb>;
 
+    imgPortOutFlow = new BufferedPort<ImageOf<PixelRgb> >;
+    imgPortOutMod  = new BufferedPort<ImageOf<PixelRgb> >;
+
+    portOutModAvg  = new BufferedPort<Bottle >;
+
     isStarting = 1;
 }
 
 bool gazeEvaluatorThread::threadInit()
 {
-    imgPortIn  -> open(("/"+name+"/img:i").c_str());
-    imgOutportFlow.open(("/"+name+"/optFlow:o").c_str());
-    imgOutportModule.open(("/"+name+"/optFlowModule:o").c_str());
-    outPortModuleAvg.open(("/"+name+"/optFlowModuleAvg:o").c_str());
+    imgPortIn       ->open(("/"+name+"/img:i").c_str());
+    imgPortOutFlow  ->open(("/"+name+"/optFlow:o").c_str());
+    imgPortOutMod   ->open(("/"+name+"/optFlowModule:o").c_str());
+    portOutModAvg   ->open(("/"+name+"/optFlowModuleAvg:o").c_str());
 
     return true;
 }
@@ -175,20 +180,28 @@ void gazeEvaluatorThread::sendOptFlow()
     double avg = 0;
     IplImage* imgOptFlow = (IplImage*)draw2DMotionField(avg);
 
-    Bottle b;
+    // Bottle b;
+    // b.clear();
+    // // b.addDouble(cnt);
+    // // b.addDouble(sum);
+    // b.addDouble(avg);
+    // portOutModAvg.write(b);
+
+    Bottle &b=portOutModAvg->prepare();
     b.clear();
-    // b.addDouble(cnt);
-    // b.addDouble(sum);
     b.addDouble(avg);
-    outPortModuleAvg.write(b);
+    portOutModAvg->write();
 
     if(imgOptFlow!=NULL)
     {
         printMessage(0,"I've got an optical flow! Avg: %g\n",avg);
         printMessage(2,"imgOptFlow depth %i\n",imgOptFlow->depth);
-        ImageOf<PixelRgb> outim;
-        outim.wrapIplImage(imgOptFlow);
-        imgOutportFlow.write(outim);
+        // ImageOf<PixelRgb> outim;
+        // outim.wrapIplImage(imgOptFlow);
+        // imgPortOutFlow.write(outim);
+        ImageOf<PixelRgb> &imgOut=imgPortOutFlow->prepare();
+        imgOut.wrapIplImage(imgOptFlow);
+        imgPortOutFlow->write();
     }
     cvReleaseImage(&imgOptFlow);
 
@@ -199,11 +212,13 @@ void gazeEvaluatorThread::sendOptFlow()
     if(imgOptFlowModule!=NULL)
     {
         printMessage(1,"imgOptFlowModule depth %i\n",imgOptFlowModule->depth);
-        ImageOf<PixelBgr> outim;
-        outim.wrapIplImage(imgOptFlowModule);
-        imgOutportModule.write(outim);
+        // ImageOf<PixelBgr> outim;
+        // outim.wrapIplImage(imgOptFlowModule);
+        // imgPortOutMod.write(outim);
+        ImageOf<PixelRgb> &imgOut=imgPortOutMod->prepare();
+        imgOut.wrapIplImage(imgOptFlowModule);
+        imgPortOutMod->write();
     }
-
     cvReleaseImage(&imgOptFlowModule);
 }
 
@@ -251,6 +266,10 @@ void gazeEvaluatorThread::threadRelease()
             delete imageIn;
             imageIn = NULL;
         }
+
+        closePort(imgPortOutFlow);
+        closePort(imgPortOutMod);
+        closePort(portOutModAvg);
 }
 
 // empty line to make gcc happy

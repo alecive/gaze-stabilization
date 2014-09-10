@@ -22,7 +22,7 @@
 A module for implementing the GAZE EVALUATOR on the iCub.
 It tests the positions of the chessboard's corners on both the image planes.
 
-Date first release: 13/11/2013
+Date first release: 13/11/2014
 
 CopyPolicy: Released under the terms of the GNU GPL v2.0.
 
