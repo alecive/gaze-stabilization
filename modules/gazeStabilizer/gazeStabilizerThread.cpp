@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <iomanip>
 
-#define GYRO_BIAS_STABILITY                 3.0     // [deg/s]
+#define GYRO_BIAS_STABILITY                 1.5     // [deg/s]
 
 gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v,
                                            string &_if_mode, string &_src_mode, string &_ctrl_mode) :
@@ -164,7 +164,10 @@ bool gazeStabilizerThread::threadInit()
 
 void gazeStabilizerThread::run()
 {
-    isIMUCalibrated = calibrateIMUMeasurements();
+    if (!isIMUCalibrated)
+    {
+        isIMUCalibrated = calibrateIMUMeasurements();
+    }
 
     /*
     * Conceptual recap:
@@ -247,7 +250,7 @@ bool gazeStabilizerThread::calibrateIMUMeasurements()
         double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ;
         IMUCalib.push_back(w);
 
-        if (IMUCalib.size() == 100)
+        if (IMUCalib.size() == 200)
         {
             Vector v(3,0.0);
             for (int i = 0; i < 3; i++)
@@ -257,10 +260,10 @@ bool gazeStabilizerThread::calibrateIMUMeasurements()
                     v[i] += IMUCalib[j][i];
                 }
                 v[i] /= IMUCalib.size();
-                IMUCalib.clear();
-                IMUCalib.push_back(v);
             }
-            printMessage(0,"IMU has been calibrated! Calibrated values: %s",IMUCalib[0].toString(3,3).c_str());
+            IMUCalib.clear();
+            IMUCalib.push_back(v);
+            printMessage(0,"IMU has been calibrated! Calibrated values: %s\n",IMUCalib[0].toString(3,3).c_str());
             return true;
         }
 
@@ -424,9 +427,9 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
         //     (if there is no data, nothing is commanded)
         Vector w(3,0.0);
         Vector w_filt(3,0.0);
-        double gyrX = inIMUBottle -> get(6).asDouble(); w[0] = gyrX;
-        double gyrY = inIMUBottle -> get(7).asDouble(); w[1] = gyrY;
-        double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ;
+        double gyrX = inIMUBottle -> get(6).asDouble(); w[0] = gyrX-IMUCalib[0][0];
+        double gyrY = inIMUBottle -> get(7).asDouble(); w[1] = gyrY-IMUCalib[0][1];
+        double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ-IMUCalib[0][2];
 
         w_filt = filt->filt(w);
         _dx_FP      = compute_dxFP_inertial(w);
@@ -478,14 +481,14 @@ Vector gazeStabilizerThread::compute_dxFP_inertial(Vector &_gyro)
 
     double gyrX = _gyro(0);
     double gyrY = _gyro(1);
-    double  gyrZ = _gyro(2);
+    double gyrZ = _gyro(2);
     Vector _dx_FP(6,0.0);
 
     // 5  - Compute the lever arm between the fixation point and the IMU
     Matrix H = IMU -> getH();
-    H(0,3) = xFP_R[0]-H(0,3);
-    H(1,3) = xFP_R[1]-H(1,3);
-    H(2,3) = xFP_R[2]-H(2,3);
+    H(0,3)   = xFP_R[0]-H(0,3);
+    H(1,3)   = xFP_R[1]-H(1,3);
+    H(2,3)   = xFP_R[2]-H(2,3);
 
     // 6A - Filter out the noise on the gyro readouts
     Vector dx_FP(3,0.0);
