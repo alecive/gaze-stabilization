@@ -5,12 +5,13 @@
 #include <unistd.h>
 #include <iomanip>
 
-#define GYRO_BIAS_STABILITY                 1.5     // [deg/s]
+#define GYRO_BIAS_STABILITY_IMU_CALIB      1.5     // [deg/s]
+#define GYRO_BIAS_STABILITY                3.0     // [deg/s]
 
-gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v,
-                                           string &_if_mode, string &_src_mode, string &_ctrl_mode) :
-                                           RateThread(_rate), name(_name), robot(_robot), verbosity(_v),
-                                           if_mode(_if_mode), src_mode(_src_mode), ctrl_mode(_ctrl_mode)
+gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v, string &_if_mode,
+                                           string &_src_mode, string &_ctrl_mode, bool _calib_IMU) :
+                                           RateThread(_rate), name(_name), robot(_robot), verbosity(_v), if_mode(_if_mode),
+                                           src_mode(_src_mode), ctrl_mode(_ctrl_mode), calib_IMU(_calib_IMU)
 {
     eyeL = new iCubEye("left_v2");
     eyeR = new iCubEye("right_v2");
@@ -70,6 +71,7 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_ro
 
     isRunning = false;
     isIMUCalibrated = false;
+    IMUCalibratedAvg.resize(3,0.0);
 }
 
 bool gazeStabilizerThread::threadInit()
@@ -164,9 +166,16 @@ bool gazeStabilizerThread::threadInit()
 
 void gazeStabilizerThread::run()
 {
-    if (!isIMUCalibrated)
+    if (calib_IMU)
     {
-        isIMUCalibrated = calibrateIMUMeasurements();
+        if (!isIMUCalibrated)
+        {
+            isIMUCalibrated = calibrateIMUMeasurements();
+        }
+    }
+    else
+    {
+        isIMUCalibrated=true;
     }
 
     /*
@@ -240,6 +249,13 @@ void gazeStabilizerThread::run()
     }
 }
 
+bool gazeStabilizerThread::calibrateIMU()
+{
+    IMUCalibratedAvg.resize(3,0.0);
+    isIMUCalibrated=false;
+    return true;
+}
+
 bool gazeStabilizerThread::calibrateIMUMeasurements()
 {
     if (inIMUBottle = inIMUPort->read(false))
@@ -261,9 +277,9 @@ bool gazeStabilizerThread::calibrateIMUMeasurements()
                 }
                 v[i] /= IMUCalib.size();
             }
-            IMUCalib.clear();
-            IMUCalib.push_back(v);
-            printMessage(0,"IMU has been calibrated! Calibrated values: %s\n",IMUCalib[0].toString(3,3).c_str());
+            
+            IMUCalibratedAvg=v;
+            printMessage(0,"IMU has been calibrated! Calibrated values: %s\n",IMUCalibratedAvg.toString(3,3).c_str());
             return true;
         }
 
@@ -427,9 +443,9 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
         //     (if there is no data, nothing is commanded)
         Vector w(3,0.0);
         Vector w_filt(3,0.0);
-        double gyrX = inIMUBottle -> get(6).asDouble(); w[0] = gyrX-IMUCalib[0][0];
-        double gyrY = inIMUBottle -> get(7).asDouble(); w[1] = gyrY-IMUCalib[0][1];
-        double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ-IMUCalib[0][2];
+        double gyrX = inIMUBottle -> get(6).asDouble(); w[0] = gyrX-IMUCalibratedAvg[0];
+        double gyrY = inIMUBottle -> get(7).asDouble(); w[1] = gyrY-IMUCalibratedAvg[1];
+        double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ-IMUCalibratedAvg[2];
 
         w_filt = filt->filt(w);
         _dx_FP      = compute_dxFP_inertial(w);
@@ -492,8 +508,9 @@ Vector gazeStabilizerThread::compute_dxFP_inertial(Vector &_gyro)
 
     // 6A - Filter out the noise on the gyro readouts
     Vector dx_FP(3,0.0);
-    if ((fabs(gyrX)<GYRO_BIAS_STABILITY) && (fabs(gyrY)<GYRO_BIAS_STABILITY) &&
-        (fabs(gyrZ)<GYRO_BIAS_STABILITY))
+    double gyrobiasstability=calib_IMU?GYRO_BIAS_STABILITY_IMU_CALIB:GYRO_BIAS_STABILITY;
+    if ((fabs(gyrX)<gyrobiasstability) && (fabs(gyrY)<gyrobiasstability) &&
+        (fabs(gyrZ)<gyrobiasstability))
         dx_FP.resize(J_E.rows(),0.0);
     // 6B - Do the magic 
     else
@@ -737,6 +754,12 @@ bool gazeStabilizerThread::setHeadCtrlModes(const VectorOf<int> &jointsToSet,con
                            jointsToSet.getFirst(),
                            modes.getFirst());
 
+    return true;
+}
+
+bool gazeStabilizerThread::set_calib_IMU(bool &_cIMU)
+{
+    calib_IMU=_cIMU;
     return true;
 }
 

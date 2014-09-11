@@ -63,6 +63,7 @@ protected:
     string if_mode;     // Interface mode to use (either vel1 or vel2)
     string src_mode;    // Source to use (either torso velocities through a port or the inertial sensor)
     string ctrl_mode;   // Control to use (either only "eyes" or "headEyes")
+    bool   calib_IMU;   // Flag to know if the calibration on the imu has to be done or not.
 
     // Classical interfaces - HEAD
     PolyDriver         *ddH;    // head device driver
@@ -104,6 +105,7 @@ protected:
     bool isRunning;         // Flag to manage the status of the thread
     bool isIMUCalibrated;   // Flag to manage if the IMU has been calibrated or not
     std::vector<Vector> IMUCalib;
+    Vector IMUCalibratedAvg;
     
     Vector dq_T;
     Vector dx_FP;
@@ -168,9 +170,8 @@ protected:
     bool moveHeadEyes(const Vector &_dq_HE);
 
     /**
-     * [calibrateIMUmeasurements description]
-     * @return [description]
-     */
+     * 
+    **/
     bool calibrateIMUMeasurements();
 
     /**
@@ -202,7 +203,8 @@ protected:
 
 public:
     // CONSTRUCTOR
-    gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v, string &_if_mode, string &_src_mode, string &_ctrl_mode);
+    gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v, string &_if_mode,
+                         string &_src_mode, string &_ctrl_mode, bool _calib_IMU);
     // INIT
     virtual bool threadInit();
     // RUN
@@ -213,13 +215,17 @@ public:
     bool startStabilization();
     bool  stopStabilization();
     // SET IF_MODE, SRC_MODE AND CTLR_MODE ON THE FLY
-    bool set_if_mode(const string &_ifm);
-    bool set_src_mode(const string &_srcm);
+    bool set_if_mode  (const string &_ifm);
+    bool set_src_mode (const string &_srcm);
     bool set_ctrl_mode(const string &_ctrlm);
+    bool set_calib_IMU(      bool   &_cIMU);
+    // CALIBRATE IMU MEASUREMENTS IN ORDER TO REMOVE THE BASELINE
+    bool calibrateIMU();
     // GET IF_MODE, SRC_MODE AND CTRL_MODE
     string get_if_mode()   { return if_mode;   };
     string get_src_mode()  { return src_mode;  };
     string get_ctrl_mode() { return ctrl_mode; };
+    bool   get_calib_IMU() { return calib_IMU; };
     // GO HOME
     bool goHome();
 };

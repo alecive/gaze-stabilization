@@ -199,6 +199,11 @@ class gazeStabilizer: public RFModule
                         {
                             if (gazeStabilizerThrd -> set_src_mode(command.get(2).asString()))
                             {
+                                if ((command.get(2).asString()) == "inertial" &&
+                                    gazeStabilizerThrd -> get_calib_IMU())
+                                {
+                                    gazeStabilizerThrd -> calibrateIMU();
+                                }
                                 reply.addVocab(ack);
                             }
                             else
@@ -237,6 +242,7 @@ class gazeStabilizer: public RFModule
             string if_mode   =           "vel2"; // it can be either vel1 or vel2
             string src_mode  =       "inertial"; // it can be either torso or inertial or wholeBody
             string ctrl_mode =           "eyes"; // it can be either eyes or headEyes
+            bool   calib_IMU =             true;
 
             //******************* NAME ******************
                 if (rf.check("name"))
@@ -253,7 +259,7 @@ class gazeStabilizer: public RFModule
                     rate = rf.find("rate").asInt();
                     printf(("*** "+name+": thread working at %i ms\n").c_str(), rate);
                 }
-                else printf(("*** "+name+": could not find rate in the config file; using %i ms as default\n").c_str(), rate);
+                else printf(("*** "+name+": could not find rate in the conf file; using %i ms as default.\n").c_str(), rate);
 
             //******************* VERBOSE ******************
                 if (rf.check("verbosity"))
@@ -261,7 +267,7 @@ class gazeStabilizer: public RFModule
                     verbosity = rf.find("verbosity").asInt();
                     printf(("*** "+name+": verbosity set to %i\n").c_str(),verbosity);
                 }
-                else printf(("*** "+name+": could not find verbosity option in the config file; using %i as default\n").c_str(),verbosity);
+                else printf(("*** "+name+": could not find verbosity option in the conf file; using %i as default.\n").c_str(),verbosity);
 
             //******************* ROBOT ******************
                 if (rf.check("robot"))
@@ -269,7 +275,7 @@ class gazeStabilizer: public RFModule
                     robot = rf.find("robot").asString();
                     printf(("*** "+name+": robot is %s\n").c_str(),robot.c_str());
                 }
-                else printf(("*** "+name+": could not find robot option in the config file; using %s as default\n").c_str(),robot.c_str());
+                else printf(("*** "+name+": could not find robot option in the conf file; using %s as default.\n").c_str(),robot.c_str());
 
             //************** INTERFACE_MODE **************
                 if (rf.check("if_mode"))
@@ -279,9 +285,9 @@ class gazeStabilizer: public RFModule
                         if_mode = rf.find("if_mode").asString();
                         printf(("*** "+name+": if_mode set to %s\n").c_str(),if_mode.c_str());
                     }
-                    else printf(("*** "+name+": if_mode option found but not allowed; using %s as default\n").c_str(),if_mode.c_str());
+                    else printf(("*** "+name+": if_mode option found but not allowed; using %s as default.\n").c_str(),if_mode.c_str());
                 }
-                else printf(("*** "+name+": could not find if_mode option in the config file; using %s as default\n").c_str(),if_mode.c_str());
+                else printf(("*** "+name+": could not find if_mode option in the conf file; using %s as default.\n").c_str(),if_mode.c_str());
 
             //************** SOURCE_MODE **************
                 if (rf.check("src_mode"))
@@ -291,9 +297,9 @@ class gazeStabilizer: public RFModule
                         src_mode = rf.find("src_mode").asString();
                         printf(("*** "+name+": src_mode set to %s\n").c_str(),src_mode.c_str());
                     }
-                    else printf(("*** "+name+": src_mode option found but not allowed; using %s as default\n").c_str(),src_mode.c_str());
+                    else printf(("*** "+name+": src_mode option found but not allowed; using %s as default.\n").c_str(),src_mode.c_str());
                 }
-                else printf(("*** "+name+": could not find src_mode option in the config file; using %s as default\n").c_str(),src_mode.c_str());
+                else printf(("*** "+name+": could not find src_mode option in the conf file; using %s as default.\n").c_str(),src_mode.c_str());
 
             //************** CONTROL_MODE **************
                 if (rf.check("ctrl_mode"))
@@ -303,13 +309,24 @@ class gazeStabilizer: public RFModule
                         ctrl_mode = rf.find("ctrl_mode").asString();
                         printf(("*** "+name+": ctrl_mode set to %s\n").c_str(),ctrl_mode.c_str());
                     }
-                    else printf(("*** "+name+": ctrl_mode option found but not allowed; using %s as default\n").c_str(),ctrl_mode.c_str());
+                    else printf(("*** "+name+": ctrl_mode option found but not allowed; using %s as default.\n").c_str(),ctrl_mode.c_str());
                 }
-                else printf(("*** "+name+": could not find ctrl_mode option in the config file; using %s as default\n").c_str(),ctrl_mode.c_str());
+                else printf(("*** "+name+": could not find ctrl_mode option in the conf file; using %s as default.\n").c_str(),ctrl_mode.c_str());
+
+            //**************** CALIB_IMU *****************
+                if (rf.check("calib_IMU"))
+                {
+                    calib_IMU=true;
+                    printf(("*** "+name+": calib_IMU option has been set to %s.\n").c_str(),calib_IMU?"true":"false");
+                }
+                else
+                {
+                    printf(("*** "+name+": could not find calib_IMU option in the conf file; using %s as default.\n").c_str(),calib_IMU?"true" :"false");
+                }
 
 
             //****************** THREAD ******************
-                gazeStabilizerThrd = new gazeStabilizerThread(rate, name, robot, verbosity, if_mode, src_mode, ctrl_mode);
+                gazeStabilizerThrd = new gazeStabilizerThread(rate, name, robot, verbosity, if_mode, src_mode, ctrl_mode, calib_IMU);
 
                 gazeStabilizerThrd -> start();
                 bool strt = 1;
