@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <iomanip>
 
-#define GYRO_BIAS_STABILITY_IMU_CALIB      1.5     // [deg/s]
+#define GYRO_BIAS_STABILITY_IMU_CALIB      1.0     // [deg/s]
 #define GYRO_BIAS_STABILITY                3.0     // [deg/s]
 
 gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v, string &_if_mode,
@@ -315,7 +315,7 @@ Vector gazeStabilizerThread::stabilizeHeadEyes(const Vector &_dx_FP, const Vecto
     Vector dx_FP = _dx_FP_filt.subVector(3,5);
     // Filter the velocity in order to smooth it out for the head
     
-    printMessage(0,"dx_FP_filtered: %s\n",dx_FP.toString().c_str());
+    printMessage(0,"dx_FP_filt: %s\n",dx_FP.toString(3,3).c_str());
 
     // 1  - Convert x_FP from root to RF_E
     Matrix H_RE = chainNeck->getH();        // matrix from root to RF_E
@@ -757,9 +757,17 @@ bool gazeStabilizerThread::setHeadCtrlModes(const VectorOf<int> &jointsToSet,con
     return true;
 }
 
-bool gazeStabilizerThread::set_calib_IMU(bool &_cIMU)
+bool gazeStabilizerThread::set_calib_IMU(bool _cIMU)
 {
     calib_IMU=_cIMU;
+    if (_cIMU==false)
+    {
+        IMUCalibratedAvg.resize(3,0.0);
+    }
+    else if (_cIMU==true)
+    {
+        calibrateIMU();
+    }
     return true;
 }
 

@@ -218,7 +218,7 @@ public:
     bool set_if_mode  (const string &_ifm);
     bool set_src_mode (const string &_srcm);
     bool set_ctrl_mode(const string &_ctrlm);
-    bool set_calib_IMU(      bool   &_cIMU);
+    bool set_calib_IMU(      bool    _cIMU);
     // CALIBRATE IMU MEASUREMENTS IN ORDER TO REMOVE THE BASELINE
     bool calibrateIMU();
     // GET IF_MODE, SRC_MODE AND CTRL_MODE

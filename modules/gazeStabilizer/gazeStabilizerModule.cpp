@@ -147,7 +147,7 @@ class gazeStabilizer: public RFModule
                     }
                     case VOCAB4('h','o','m','e'):
                     {
-                        int res=Vocab::encode("going");
+                        int res=Vocab::encode("home");
                         if (gazeStabilizerThrd -> goHome())
                         {
                             reply.addVocab(ack);
@@ -176,6 +176,11 @@ class gazeStabilizer: public RFModule
                         {
                             reply.addVocab(ack);
                             reply.addString(gazeStabilizerThrd -> get_ctrl_mode());
+                        }
+                        else if (command.get(1).asString() == "calib_IMU")
+                        {
+                            reply.addVocab(ack);
+                            reply.addInt(gazeStabilizerThrd -> get_calib_IMU());
                         }
                         else
                             reply.addVocab(nack);
@@ -218,9 +223,29 @@ class gazeStabilizer: public RFModule
                             else
                                 reply.addVocab(nack);
                         }
+                        else if (command.get(1).asString() == "calib_IMU")
+                        {
+                            if (gazeStabilizerThrd -> set_calib_IMU(bool(command.get(2).asInt())))
+                            {
+                                reply.addVocab(ack);
+                            }
+                            else
+                                reply.addVocab(nack);
+                        }
                         else
                             reply.addVocab(nack);
 
+                        return true;
+                    }
+                    case VOCAB4('c','a','l','i'):
+                    {
+                        if (gazeStabilizerThrd -> get_calib_IMU())
+                        {
+                            gazeStabilizerThrd -> calibrateIMU();
+                            reply.addVocab(ack);
+                        }
+                        else
+                            reply.addVocab(nack);
                         return true;
                     }
                     //-----------------
@@ -242,7 +267,7 @@ class gazeStabilizer: public RFModule
             string if_mode   =           "vel2"; // it can be either vel1 or vel2
             string src_mode  =       "inertial"; // it can be either torso or inertial or wholeBody
             string ctrl_mode =           "eyes"; // it can be either eyes or headEyes
-            bool   calib_IMU =             true;
+            bool   calib_IMU =            false;
 
             //******************* NAME ******************
                 if (rf.check("name"))
