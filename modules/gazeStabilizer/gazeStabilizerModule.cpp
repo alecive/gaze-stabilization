@@ -267,7 +267,7 @@ class gazeStabilizer: public RFModule
             string if_mode   =           "vel2"; // it can be either vel1 or vel2
             string src_mode  =       "inertial"; // it can be either torso or inertial or wholeBody
             string ctrl_mode =           "eyes"; // it can be either eyes or headEyes
-            bool   calib_IMU =            false;
+            bool   calib_IMU =             true;
 
             //******************* NAME ******************
                 if (rf.check("name"))
@@ -412,6 +412,7 @@ int main(int argc, char * argv[])
         cout << "   --src_mode   source: source to use for compensating. It can be either torso, inertial, or wholeBody; default torso." << endl;
         cout << "   --ctrl_mode  ctrl:   control to use for deploying the compensation." << endl;
         cout << "                        It can be either eyes or headEyes; default headEyes." << endl;
+        cout << "   --calib_IMU          flag to know if to calibrate the IMU measurements in advance or not (recommended)." << endl;
         cout << endl;
         return 0;
     }
