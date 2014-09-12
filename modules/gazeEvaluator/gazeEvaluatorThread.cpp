@@ -5,16 +5,13 @@
 #include <unistd.h>
 #include <iomanip>
 
-#define GYRO_BIAS_STABILITY                 5.0     // [deg/s]
-#define PIXELS_TO_DISCARD                  50.0
+#define IMG_CROP_SIZE         50.0
 
 gazeEvaluatorThread::gazeEvaluatorThread(int _rate, string _name, string _robot, int _v) :
                                            RateThread(_rate), name(_name), robot(_robot), verbosity(_v)
 {
-    imgPortIn = new BufferedPort<ImageOf<PixelRgb> >;
-    imageIn   = new ImageOf<PixelRgb>;
-
-    imgPortOutFlow = new BufferedPort<ImageOf<PixelRgb> >;
+    inPort = new BufferedPort<ImageOf<PixelRgb> >;
+    outPort = new BufferedPort<ImageOf<PixelRgb> >;
     imgPortOutMod  = new BufferedPort<ImageOf<PixelRgb> >;
 
     portOutModAvg  = new BufferedPort<Bottle >;
@@ -24,93 +21,159 @@ gazeEvaluatorThread::gazeEvaluatorThread(int _rate, string _name, string _robot,
 
 bool gazeEvaluatorThread::threadInit()
 {
-    imgPortIn       ->open(("/"+name+"/img:i").c_str());
-    imgPortOutFlow  ->open(("/"+name+"/optFlow:o").c_str());
+    inPort       ->open(("/"+name+"/img:i").c_str());
+    outPort  ->open(("/"+name+"/optFlow:o").c_str());
     imgPortOutMod   ->open(("/"+name+"/optFlowModule:o").c_str());
     portOutModAvg   ->open(("/"+name+"/optFlowModuleAvg:o").c_str());
+
+    Network::connect("/icub/camcalib/left/out",("/"+name+"/img:i").c_str());
+    Network::connect("/icub/cam/left",("/"+name+"/img:i").c_str());
+    Network::connect(("/"+name+"/optFlow:o").c_str(),"/gazeEvalFlow");
+    Network::connect(("/"+name+"/optFlowModule:o").c_str(),"/gazeEvalFlowModule");
 
     return true;
 }
 
 void gazeEvaluatorThread::run()
 {
+// // 1  - Get the image
+// ImageOf<PixelRgb> *imageIn = inPort->read(false);
+
+// if(imageIn!=NULL)
+// {
+//     // Wrap the input image into a cv::Mat
+//     cv::Mat matIn((IplImage*)imageIn->getIplImage());
+
+//     // Prepare the output port
+//     ImageOf<PixelRgb> imageOut;
+
+//     // Resize the output image to be equal to the input image
+//     imageOut.resize(*imageIn);
+
+//     // Wrap the output image into a cv::Mat
+//     cv::Mat matOut((IplImage*)imageOut.getIplImage());
+
+//     // Copy the input mat into the output mat
+//     matOut=matIn.clone();
+
+//     // Send data
+//     outPort->prepare()=imageOut;
+//     outPort->write();   
+// }
+// 
+
     if(!optFlow.empty())
         optFlow.setTo(Scalar(0));
 
     if (isStarting)
     {
-        ImageOf<PixelRgb> *tmp = imgPortIn->read(false);
+        ImageOf<PixelRgb> *tmp = inPort->read(false);
 
         if(tmp!=NULL)
         {
-            *imageIn   = *tmp;
-            imgInNext  = (IplImage*) imageIn->getIplImage();
-            imgInPrev  = (IplImage*)cvClone(imgInNext);
-            isStarting = false;
+            imageInNext = *tmp;
+            imageInPrev =  imageInNext;
+            isStarting  = false;
             printMessage(0,"Starting..\n");
         }
     }
     else
     {
         // 1  - Get the image
-        ImageOf<PixelRgb> *tmp = imgPortIn->read(false);
+        ImageOf<PixelRgb> *tmp = inPort->read(false);
         if(tmp!=NULL)
         {
-            *imageIn=*tmp;
+            imageInNext = *tmp;
         }
-        // 2A - Put the read imag into imgInNext
-        imgInNext = (IplImage*) imageIn->getIplImage();
+
+        
+        cv::Mat imgInNext((IplImage*)imageInNext.getIplImage());
+        cv::Mat imgInPrev((IplImage*)imageInPrev.getIplImage());
 
         // 2B - Smooth it out
-        cvSmooth(imgInNext, imgInNext, CV_GAUSSIAN, 3, 0, 0, 0);
-
-        // 3  - Set the new image
-        Mat tmpPrev(imgInPrev);
-        Mat tmpNext(imgInNext);
-        setImages(tmpPrev,tmpNext);
+        cv::boxFilter(imgInNext, imgInNext, -1, cv::Size(4,3));
 
         // 4  - Make it gray
         Mat imgPrevGray;
         Mat imgNextGray;
-        cvtColor(imgPrev,imgPrevGray,CV_RGB2GRAY,1);
-        cvtColor(imgNext,imgNextGray,CV_RGB2GRAY,1);
+        cvtColor(imgInPrev,imgPrevGray,CV_RGB2GRAY);
+        cvtColor(imgInNext,imgNextGray,CV_RGB2GRAY);
 
         // 5 - Compute the optical flow
-        int flag=0;
         if(!optFlow.empty())
             optFlow.setTo(Scalar(0));
         
-        calcOpticalFlowFarneback(imgPrevGray,imgNextGray,optFlow,0.25,5,9,5,7,1.5,flag);
+        calcOpticalFlowFarneback(imgPrevGray,imgNextGray,optFlow,0.5,5,9,5,7,1.5,0);
 
-        imgInPrev=(IplImage*)cvClone(imgInNext);
+        imageInPrev=imageInNext;
 
-        if (!optFlow.empty() && imgInPrev!=NULL)
+        if (!optFlow.empty() && !imgInPrev.empty())
         {
             sendOptFlow();
         }
     }
 }
 
-IplImage* gazeEvaluatorThread::draw2DMotionField(double &_avg)
+
+void gazeEvaluatorThread::sendOptFlow()
 {
+    // Send the optical flow as a superimposition of the input image
+    double avg = 0;
+    ImageOf<PixelRgb> imageOutFlow;
+    imageOutFlow=imageInNext;
+
+    if (draw2DMotionField(avg,imageOutFlow))
+    {
+        Bottle &b=portOutModAvg->prepare();
+        b.clear();
+        b.addDouble(avg);
+        portOutModAvg->write();
+
+        printMessage(0,"I've got an optical flow! Avg: %g\n",avg);
+        outPort->prepare()=imageOutFlow;
+        outPort->write();
+    }
+
+    // // Send the pixel-by-pixel norm of the optical flow in a standalone port
+    // Mat imgOptFlowModule=cv::Mat::zeros(imgInPrev.rows,imgInPrev.cols,CV_8UC1);
+
+    // if(drawFlowModule(imgOptFlowModule))
+    // {
+    //     // ImageOf<PixelBgr> outim;
+    //     // outim.wrapIplImage(imgOptFlowModule);
+    //     // imgPortOutMod.write(outim);
+    //     // 
+    //     // ImageOf<PixelRgb> &imageOut=imgPortOutMod->prepare();
+    //     // imageOut.wrapIplImage(imgOptFlowModule);
+    //     // imgPortOutMod->write();
+
+    //     ImageOf<PixelRgb> &imageOut=imgPortOutMod->prepare();
+    //     imageOut.resize(imageIn->width(),imageIn->height());
+    //     cv::Mat imageOutMat((IplImage*)imageOut.getIplImage());
+    //     // imageOutMat=cv::Mat::zeros(imgInPrev.rows,imgInPrev.cols,CV_8UC1);
+    //     imgPortOutMod->write();
+    // }
+}
+
+bool gazeEvaluatorThread::draw2DMotionField(double &_avg,ImageOf<PixelRgb> &_iFlow)
+{
+    cv::Mat iFlowMat((IplImage*)_iFlow.getIplImage());
     int xSpace=7;
     int ySpace=7;
     float cutoff=1;
     float multiplier=5;
-    CvScalar color=CV_RGB(255,0,0);
+    cv::Scalar color=cv::Scalar(125,255,0);
 
     CvPoint p0 = cvPoint(0,0);
     CvPoint p1 = cvPoint(0,0);
-
-    IplImage* imgMotion=(IplImage*) cvClone(imgInPrev);
 
     float deltaX, deltaY, angle, hyp;
     float sum = 0;
     float cnt = 0;
 
-    for(int i=0; i<optFlow.rows; i+=5) 
+    for(int i=IMG_CROP_SIZE; i<optFlow.rows-IMG_CROP_SIZE; i+=7) 
     {
-        for (int j=0; j<optFlow.cols; j+=5)
+        for (int j=IMG_CROP_SIZE; j<optFlow.cols-IMG_CROP_SIZE; j+=7)
         {
             p0.x = j;
             p0.y = i;
@@ -118,9 +181,7 @@ IplImage* gazeEvaluatorThread::draw2DMotionField(double &_avg)
             deltaY = -optFlow.ptr<float>(i)[2*j+1];
             angle = atan2(deltaY, deltaX);
             hyp = sqrt(deltaX*deltaX + deltaY*deltaY);
-            if (hyp > 1e-1 && 
-                i > PIXELS_TO_DISCARD && i < optFlow.rows - PIXELS_TO_DISCARD &&
-                j > PIXELS_TO_DISCARD && j < optFlow.cols - PIXELS_TO_DISCARD)
+            if (hyp > 1e-1)
             {
                 sum = sum + hyp;
                 cnt++;
@@ -130,102 +191,52 @@ IplImage* gazeEvaluatorThread::draw2DMotionField(double &_avg)
             {
                 p1.x = p0.x + cvRound(multiplier*hyp*cos(angle));
                 p1.y = p0.y + cvRound(multiplier*hyp*sin(angle));
-                cvLine( imgMotion, p0, p1, color,1, CV_AA, 0);
+                cv::line(iFlowMat,p0,p1,color,1,CV_AA);
                 p0.x = p1.x + cvRound(3*cos(angle-CV_PI + CV_PI/4));
                 p0.y = p1.y + cvRound(3*sin(angle-CV_PI + CV_PI/4));
-                cvLine( imgMotion, p0, p1, color,1, CV_AA, 0);
+                cv::line(iFlowMat,p0,p1,color,1,CV_AA);
 
                 p0.x = p1.x + cvRound(3*cos(angle-CV_PI - CV_PI/4));
                 p0.y = p1.y + cvRound(3*sin(angle-CV_PI - CV_PI/4));
-                cvLine( imgMotion, p0, p1, color,1, CV_AA, 0);
+                cv::line(iFlowMat,p0,p1,color,1,CV_AA);
             }
         }
     }
     if (cnt!=0)
     {
         _avg = sum/cnt;
+        return true;
     }
 
-    return imgMotion;
+    return true;
 }
 
-void gazeEvaluatorThread::drawFlowModule(IplImage* imgMotion)
+bool gazeEvaluatorThread::drawFlowModule(Mat &optFlow)
 {
-    IplImage * module =cvCreateImage(cvSize(imgMotion->width,imgMotion->height),32,1);
-    IplImage * moduleU =cvCreateImage(cvSize(imgMotion->width,imgMotion->height),8,1);
+    Mat module  =cv::Mat::zeros(optFlow.rows,optFlow.cols,CV_32F);
+    Mat moduleU =cv::Mat::zeros(optFlow.rows,optFlow.cols,CV_8UC1);
     Mat vel[2];
     split(optFlow,vel);
-    IplImage tx=(Mat)vel[0];
-    IplImage ty=(Mat)vel[1];
+    Mat tx=(Mat)vel[0];
+    Mat ty=(Mat)vel[1];
 
-    IplImage* velxpow=cvCloneImage(&tx);
-    IplImage* velypow=cvCloneImage(&ty);
+    Mat velxpow=tx;
+    Mat velypow=ty;
 
-    cvPow(&tx, velxpow, 2);
-    cvPow(&ty, velypow, 2);
+    cv::pow(tx,2,velxpow);
+    cv::pow(ty,2,velypow);
 
-    cvAdd(velxpow, velypow, module, NULL);
-    cvPow(module, module, 0.5);
-    cvNormalize(module, module, 0.0, 1.0, CV_MINMAX, NULL);
-    cvZero(imgMotion);
-    cvConvertScale(module,moduleU,255,0);
-    cvMerge(moduleU,moduleU,moduleU,NULL,imgMotion);
-    cvReleaseImage(&module);
-    cvReleaseImage(&moduleU);
-}
-
-void gazeEvaluatorThread::sendOptFlow()
-{
-    // Send the optical flow as a superimposition of the input image
-    double avg = 0;
-    IplImage* imgOptFlow = (IplImage*)draw2DMotionField(avg);
-
-    // Bottle b;
-    // b.clear();
-    // // b.addDouble(cnt);
-    // // b.addDouble(sum);
-    // b.addDouble(avg);
-    // portOutModAvg.write(b);
-
-    Bottle &b=portOutModAvg->prepare();
-    b.clear();
-    b.addDouble(avg);
-    portOutModAvg->write();
-
-    if(imgOptFlow!=NULL)
-    {
-        printMessage(0,"I've got an optical flow! Avg: %g\n",avg);
-        printMessage(2,"imgOptFlow depth %i\n",imgOptFlow->depth);
-        // ImageOf<PixelRgb> outim;
-        // outim.wrapIplImage(imgOptFlow);
-        // imgPortOutFlow.write(outim);
-        ImageOf<PixelRgb> &imgOut=imgPortOutFlow->prepare();
-        imgOut.wrapIplImage(imgOptFlow);
-        imgPortOutFlow->write();
-    }
-    cvReleaseImage(&imgOptFlow);
-
-    // Send the pixel-by-pixel norm of the optical flow in a standalone port
-    IplImage* imgOptFlowModule=cvCreateImage(cvSize(imgInPrev->width,imgInPrev->height),8,3);
-    drawFlowModule(imgOptFlowModule);
-
-    if(imgOptFlowModule!=NULL)
-    {
-        printMessage(1,"imgOptFlowModule depth %i\n",imgOptFlowModule->depth);
-        // ImageOf<PixelBgr> outim;
-        // outim.wrapIplImage(imgOptFlowModule);
-        // imgPortOutMod.write(outim);
-        ImageOf<PixelRgb> &imgOut=imgPortOutMod->prepare();
-        imgOut.wrapIplImage(imgOptFlowModule);
-        imgPortOutMod->write();
-    }
-    cvReleaseImage(&imgOptFlowModule);
-}
-
-void gazeEvaluatorThread::setImages(Mat &_prev, Mat &_next) 
-{
-    imgPrev=_prev;
-    imgNext=_next;
+    cv::add(velxpow, velypow, module);
+    cv::pow(module,0.5,module);
+    cv::normalize(module, module, 0.0, 1.0, NORM_MINMAX);
+    optFlow=cv::Mat::zeros(optFlow.rows,optFlow.cols,CV_8UC1);
+    cv::convertScaleAbs(module,moduleU,255,0);
+    std::vector<cv::Mat> mod;
+    mod.push_back(moduleU);
+    mod.push_back(moduleU);
+    mod.push_back(moduleU);
+    cv::merge(mod,optFlow);
+    return true;
 }
 
 int gazeEvaluatorThread::printMessage(const int l, const char *f, ...) const
@@ -260,14 +271,8 @@ void gazeEvaluatorThread::closePort(Contactable *_port)
 void gazeEvaluatorThread::threadRelease()
 {
     printMessage(0,"Closing ports...\n");
-        closePort(imgPortIn);
-        if(imageIn)
-        {
-            delete imageIn;
-            imageIn = NULL;
-        }
-
-        closePort(imgPortOutFlow);
+        closePort(inPort);
+        closePort(outPort);
         closePort(imgPortOutMod);
         closePort(portOutModAvg);
 }

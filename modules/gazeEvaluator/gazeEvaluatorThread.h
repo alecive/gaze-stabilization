@@ -65,28 +65,23 @@ protected:
     string name;        // Name of the module (to change port names accordingly)  
     string robot;       // Name of the robot (to address both icub and icubSim)
 
-    BufferedPort<ImageOf<PixelRgb> > *imgPortIn;
-    BufferedPort<ImageOf<PixelRgb> > *imgPortOutFlow;
+    BufferedPort<ImageOf<PixelRgb> > *inPort;
+    BufferedPort<ImageOf<PixelRgb> > *outPort;
     BufferedPort<ImageOf<PixelRgb> > *imgPortOutMod;
     BufferedPort<Bottle >            *portOutModAvg;
 
-    yarp::sig::ImageOf<yarp::sig::PixelRgb>* imageIn;
+    ImageOf<PixelRgb> imageInNext;
+    ImageOf<PixelRgb> imageInPrev;
 
     // Internal matrices and variables
     bool isStarting;
 
     cv::Mat optFlow;
-    cv::Mat imgPrev;
-    cv::Mat imgNext;
-    IplImage* imgInNext;
-    IplImage* imgInPrev;
-
-    void setImages(Mat &_prev, Mat &_next); 
 
     void sendOptFlow();
 
-    IplImage* draw2DMotionField(double &_avg);
-    void drawFlowModule(IplImage* imgMotion);
+    bool draw2DMotionField(double &_avg,ImageOf<PixelRgb> &_iFlow);
+    bool drawFlowModule(Mat &_imgMotion);
 
     /**
     * Prints a message according to the verbosity level:
