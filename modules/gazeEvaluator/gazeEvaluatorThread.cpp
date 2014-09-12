@@ -129,7 +129,8 @@ void gazeEvaluatorThread::sendOptFlow()
         b.addDouble(avg);
         portOutModAvg->write();
 
-        printMessage(0,"I've got an optical flow! Avg: %g\n",avg);
+        printMessage(0,"I've got an optical flow: Avg %g\n",avg);
+        // printMessage(0,"I've got an optical flow: Avg %i\n",int(avg));
         outPort->prepare()=imageOutFlow;
         outPort->write();
     }
@@ -195,7 +196,6 @@ bool gazeEvaluatorThread::draw2DMotionField(double &_avg,ImageOf<PixelRgb> &_iFl
                 p0.x = p1.x + cvRound(3*cos(angle-CV_PI + CV_PI/4));
                 p0.y = p1.y + cvRound(3*sin(angle-CV_PI + CV_PI/4));
                 cv::line(iFlowMat,p0,p1,color,1,CV_AA);
-
                 p0.x = p1.x + cvRound(3*cos(angle-CV_PI - CV_PI/4));
                 p0.y = p1.y + cvRound(3*sin(angle-CV_PI - CV_PI/4));
                 cv::line(iFlowMat,p0,p1,color,1,CV_AA);
@@ -208,7 +208,7 @@ bool gazeEvaluatorThread::draw2DMotionField(double &_avg,ImageOf<PixelRgb> &_iFl
         return true;
     }
 
-    return true;
+    return false;
 }
 
 bool gazeEvaluatorThread::drawFlowModule(Mat &optFlow)
