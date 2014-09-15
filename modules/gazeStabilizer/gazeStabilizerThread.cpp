@@ -491,7 +491,7 @@ Vector gazeStabilizerThread::compute_dxFP_inertial(Vector &_gyro)
         H(2,3) = 0;
 
         // printMessage(0,"w: \t%s\tH:\n%s\n",w.toString(3,3).c_str(),H.toString(3,3).c_str());
-        Vector w(4,0.0);
+        Vector w(3,0.0);
         w.push_back(1.0);
         w = CTRL_DEG2RAD * H * _gyro;
         w.pop_back();
