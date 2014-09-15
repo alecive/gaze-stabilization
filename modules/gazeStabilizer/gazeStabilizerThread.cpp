@@ -253,7 +253,9 @@ void gazeStabilizerThread::run()
 
 bool gazeStabilizerThread::calibrateIMU()
 {
+    printMessage(1,"Calibrating IMU...\n");
     IMUCalibratedAvg.resize(3,0.0);
+    IMUCalib.clear();
     isIMUCalibrated=false;
     return true;
 }
@@ -450,6 +452,7 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
         double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ-IMUCalibratedAvg[2];
 
         w_filt = filt->filt(w);
+        // w_filt = w;
         _dx_FP      = compute_dxFP_inertial(w);
         _dx_FP_filt = compute_dxFP_inertial(w_filt);
 
