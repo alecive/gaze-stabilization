@@ -187,6 +187,7 @@ void gazeStabilizerThread::run()
     */
     if (isRunning && isIMUCalibrated)
     {
+        printf("\n\n");
         // 1 - Read the encoders for torso and head
         iencsT->getEncoders(encsT->data());
         iencsH->getEncoders(encsH->data());
@@ -196,18 +197,18 @@ void gazeStabilizerThread::run()
         updateEyeChain (*chainEyeR,"right");
         updateNeckChain(*chainNeck);
         updateIMUChain (*chainIMU);
-        printMessage(2,"EyeL: %s\n",(CTRL_RAD2DEG*(eyeL->getAng())).toString(3,3).c_str());
-        printMessage(2,"EyeR: %s\n",(CTRL_RAD2DEG*(eyeR->getAng())).toString(3,3).c_str());
-        printMessage(2,"Neck: %s\n",(CTRL_RAD2DEG*(neck->getAng())).toString(3,3).c_str());
-        printMessage(2,"IMU:  %s\n",(CTRL_RAD2DEG*(IMU ->getAng())).toString(3,3).c_str());
+        printMessage(3,"EyeL: %s\n",(CTRL_RAD2DEG*(eyeL->getAng())).toString(3,3).c_str());
+        printMessage(3,"EyeR: %s\n",(CTRL_RAD2DEG*(eyeR->getAng())).toString(3,3).c_str());
+        printMessage(3,"Neck: %s\n",(CTRL_RAD2DEG*(neck->getAng())).toString(3,3).c_str());
+        printMessage(3,"IMU:  %s\n",(CTRL_RAD2DEG*(IMU ->getAng())).toString(3,3).c_str());
 
         // 3 - Compute Fixation Point Data (x_FP and J_E) for later use
         //          x_FP = position of the fixation point
         //          J_E  = Jacobian that relates the eyes' joints to the motion of the FP
         if (CartesianHelper::computeFixationPointData(*chainEyeL,*chainEyeR,xFP_R,J_E))
         {
-            printMessage(1,"xFP_R:\t%s\n", xFP_R.toString(3,3).c_str());
-            printMessage(1,"J_E:\n%s\n\n",   J_E.toString(3,3).c_str());
+            printMessage(2,"xFP_R:\t%s\n", xFP_R.toString(3,3).c_str());
+            printMessage(2,"J_E:\n%s\n",   J_E.toString(3,3).c_str());
 
             // 3A - Compute the velocity of the fixation point. It is src_mode dependent
             dx_FP.resize(6,0.0);
@@ -234,13 +235,13 @@ void gazeStabilizerThread::run()
             if (ctrl_mode == "eyes")
             {
                 Vector dq_E=stabilizeEyes(dx_FP);
-                printMessage(0,"dq_E:\t%s\n\n", dq_E.toString(3,3).c_str());
+                printMessage(0,"dq_E:\t%s\n", dq_E.toString(3,3).c_str());
                 moveEyes(dq_E);
             }
             else if (ctrl_mode == "headEyes")
             {
                 Vector dq_HE=stabilizeHeadEyes(dx_FP,dx_FP_filt);
-                printMessage(0,"dq_HE:\t%s\n\n", dq_HE.toString(3,3).c_str());
+                printMessage(0,"dq_HE:\t%s\n", dq_HE.toString(3,3).c_str());
                 moveHeadEyes(dq_HE);
             }
         }
@@ -258,45 +259,6 @@ bool gazeStabilizerThread::calibrateIMU()
     IMUCalib.clear();
     isIMUCalibrated=false;
     return true;
-}
-
-bool gazeStabilizerThread::calibrateIMUMeasurements()
-{
-    if (inIMUBottle = inIMUPort->read(false))
-    {
-        Vector w(3,0.0);
-        double gyrX = inIMUBottle -> get(6).asDouble(); w[0] = gyrX;
-        double gyrY = inIMUBottle -> get(7).asDouble(); w[1] = gyrY;
-        double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ;
-        IMUCalib.push_back(w);
-
-        if (IMUCalib.size() == 200)
-        {
-            Vector v(3,0.0);
-            for (int i = 0; i < 3; i++)
-            {
-                for (int j = 0; j < IMUCalib.size(); j++)
-                {
-                    v[i] += IMUCalib[j][i];
-                }
-                v[i] /= IMUCalib.size();
-            }
-            
-            IMUCalibratedAvg=v;
-            printMessage(0,"IMU has been calibrated! Calibrated values: %s\n",IMUCalibratedAvg.toString(3,3).c_str());
-            return true;
-        }
-
-
-        return false;
-    }
-    else
-    {
-        return false;
-    }
-
-    printMessage(1,"Calibrating IMU...");
-    return false;
 }
 
 Vector gazeStabilizerThread::stabilizeEyes(const Vector &_dx_FP)
@@ -319,14 +281,13 @@ Vector gazeStabilizerThread::stabilizeHeadEyes(const Vector &_dx_FP, const Vecto
     Vector dx_FP = _dx_FP_filt.subVector(3,5);
     // Filter the velocity in order to smooth it out for the head
     
-    printMessage(0,"dx_FP_filt: %s\n",dx_FP.toString(3,3).c_str());
+    printMessage(0,"dx_FP_filt(rotational part): %s\n",dx_FP.toString(3,3).c_str());
 
     // 1  - Convert x_FP from root to RF_E
     Matrix H_RE = chainNeck->getH();        // matrix from root to RF_E
     xFP_R.push_back(1);
     Vector xFP_E = SE3inv(H_RE) * xFP_R;
     xFP_R.pop_back();
-    printMessage(0,"xFP_R:\t%s\t\t\tNeckDOF %i\n", xFP_R.toString(3,3).c_str(),chainNeck->getDOF());
     printMessage(1,"xFP_E:\t%s\n", xFP_E.toString(3,3).c_str());
 
     // 2  - Compute J_H, that is the jacobian of the head joints alone
@@ -455,6 +416,7 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
         // w_filt = w;
         _dx_FP      = compute_dxFP_inertial(w);
         _dx_FP_filt = compute_dxFP_inertial(w_filt);
+        // _dx_FP_filt = _dx_FP;
 
         return true;
     }
@@ -529,12 +491,13 @@ Vector gazeStabilizerThread::compute_dxFP_inertial(Vector &_gyro)
         H(2,3) = 0;
 
         // printMessage(0,"w: \t%s\tH:\n%s\n",w.toString(3,3).c_str(),H.toString(3,3).c_str());
-        _gyro.push_back(1.0);
-        _gyro = CTRL_DEG2RAD * H * _gyro;
-        _gyro.pop_back();
+        Vector w(4,0.0);
+        w.push_back(1.0);
+        w = CTRL_DEG2RAD * H * _gyro;
+        w.pop_back();
 
         // 7 - Compute dx_FP
-        _dx_FP.setSubvector(3, _gyro);
+        _dx_FP.setSubvector(3, w);
     }
     return _dx_FP;
 }
@@ -582,10 +545,12 @@ bool gazeStabilizerThread::moveHeadEyes(const Vector &_dq_HE)
     }
 
     // Move the head
+    printMessage(1,"Moving neck to: %s\n",_dq_HE.subVector(0,2).toString(3,3).c_str());
     std::vector<int> Ejoints;  // indexes of the joints to control
     Ejoints.push_back(0);
     Ejoints.push_back(1);
     Ejoints.push_back(2);
+    printMessage(3,"Head joints to be controlled: %i %i %i\n",Ejoints[0],Ejoints[1],Ejoints[2]);
 
     if (if_mode == "vel2")
     {
@@ -760,6 +725,45 @@ bool gazeStabilizerThread::setHeadCtrlModes(const VectorOf<int> &jointsToSet,con
                            modes.getFirst());
 
     return true;
+}
+
+bool gazeStabilizerThread::calibrateIMUMeasurements()
+{
+    if (inIMUBottle = inIMUPort->read(false))
+    {
+        Vector w(3,0.0);
+        double gyrX = inIMUBottle -> get(6).asDouble(); w[0] = gyrX;
+        double gyrY = inIMUBottle -> get(7).asDouble(); w[1] = gyrY;
+        double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ;
+        IMUCalib.push_back(w);
+
+        if (IMUCalib.size() == 200)
+        {
+            Vector v(3,0.0);
+            for (int i = 0; i < 3; i++)
+            {
+                for (int j = 0; j < IMUCalib.size(); j++)
+                {
+                    v[i] += IMUCalib[j][i];
+                }
+                v[i] /= IMUCalib.size();
+            }
+            
+            IMUCalibratedAvg=v;
+            printMessage(0,"IMU has been calibrated! Calibrated values: %s\n",IMUCalibratedAvg.toString(3,3).c_str());
+            return true;
+        }
+
+
+        return false;
+    }
+    else
+    {
+        return false;
+    }
+
+    printMessage(1,"Calibrating IMU...");
+    return false;
 }
 
 bool gazeStabilizerThread::set_calib_IMU(bool _cIMU)
