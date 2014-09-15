@@ -107,9 +107,10 @@ protected:
     std::vector<Vector> IMUCalib;
     Vector IMUCalibratedAvg;
     
-    Vector dq_T;
-    Vector dx_FP;
-    Vector dx_FP_filt;
+    Vector dq_T;            // Velocity commands at the torso joints (if we are in torso mode)
+    Vector dx_FP;           // 6D speed of the fixation point (src_mode dependent)
+    Vector dx_FP_filt;      // 6D speed filtered to reduce the resonant behavior at the head with the inertial
+    Vector dx_FP_ego;       // 6D speed of the fixation point due to our own head movements
 
     // Input from the torsoController
     BufferedPort<Bottle>  *inTorsoPort;   // port for reading from the torsoController

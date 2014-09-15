@@ -51,6 +51,7 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_ro
     dq_T.resize(3,0.0);
     dx_FP.resize(6,0.0);
     dx_FP_filt.resize(6,0.0);
+    dx_FP_ego.resize(6,0.0);
 
     // Create the filter
     y0.resize(3,0.0);
@@ -200,14 +201,15 @@ void gazeStabilizerThread::run()
         printMessage(2,"Neck: %s\n",(CTRL_RAD2DEG*(neck->getAng())).toString(3,3).c_str());
         printMessage(2,"IMU:  %s\n",(CTRL_RAD2DEG*(IMU ->getAng())).toString(3,3).c_str());
 
-
-        // 3 - Compute Fixation Point Data (x_FP and J_E)
+        // 3 - Compute Fixation Point Data (x_FP and J_E) for later use
+        //          x_FP = position of the fixation point
+        //          J_E  = Jacobian that relates the eyes' joints to the motion of the FP
         if (CartesianHelper::computeFixationPointData(*chainEyeL,*chainEyeR,xFP_R,J_E))
         {
             printMessage(1,"xFP_R:\t%s\n", xFP_R.toString(3,3).c_str());
             printMessage(1,"J_E:\n%s\n\n",   J_E.toString(3,3).c_str());
 
-            // First thing, compute the velocity of the fixation point. It is src_mode dependent:
+            // 3A - Compute the velocity of the fixation point. It is src_mode dependent
             dx_FP.resize(6,0.0);
             dx_FP_filt.resize(6,0.0);
 
@@ -227,8 +229,8 @@ void gazeStabilizerThread::run()
             }
             printMessage(0,"dx_FP:\t%s\n", dx_FP.toString(3,3).c_str());
 
-            // Secondly, compute the stabilization and send it to the robot.
-            // This step is ctrl_mode dependent:
+            // 3B - Compute the stabilization command and send it to the robot.
+            //      It is ctrl_mode dependent
             if (ctrl_mode == "eyes")
             {
                 Vector dq_E=stabilizeEyes(dx_FP);
