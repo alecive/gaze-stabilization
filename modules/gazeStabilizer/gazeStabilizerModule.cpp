@@ -266,7 +266,7 @@ class gazeStabilizer: public RFModule
             int    rate      =               10; // rate of the gazeStabilizerThread
             string if_mode   =           "vel2"; // it can be either vel1 or vel2
             string src_mode  =       "inertial"; // it can be either torso or inertial or wholeBody
-            string ctrl_mode =           "eyes"; // it can be either eyes or headEyes
+            string ctrl_mode =           "eyes"; // it can be either head, eyes or headEyes
             bool   calib_IMU =             true;
 
             //******************* NAME ******************
@@ -329,7 +329,9 @@ class gazeStabilizer: public RFModule
             //************** CONTROL_MODE **************
                 if (rf.check("ctrl_mode"))
                 {
-                    if (rf.find("ctrl_mode").asString() == "eyes" || rf.find("ctrl_mode").asString() == "headEyes")
+                    if (rf.find("ctrl_mode").asString() == "head" ||
+                        rf.find("ctrl_mode").asString() == "eyes" ||
+                        rf.find("ctrl_mode").asString() == "headEyes")
                     {
                         ctrl_mode = rf.find("ctrl_mode").asString();
                         printf(("*** "+name+": ctrl_mode set to %s\n").c_str(),ctrl_mode.c_str());
@@ -411,7 +413,7 @@ int main(int argc, char * argv[])
         cout << "   --if_mode    mode:   interface to use for velocity control. It can be either vel1 or vel2, default vel2." << endl;
         cout << "   --src_mode   source: source to use for compensating. It can be either torso, inertial, or wholeBody; default torso." << endl;
         cout << "   --ctrl_mode  ctrl:   control to use for deploying the compensation." << endl;
-        cout << "                        It can be either eyes or headEyes; default headEyes." << endl;
+        cout << "                        It can be either head, eyes or headEyes; default headEyes." << endl;
         cout << "   --calib_IMU          flag to know if to calibrate the IMU measurements in advance or not (recommended)." << endl;
         cout << endl;
         return 0;

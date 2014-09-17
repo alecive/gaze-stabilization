@@ -161,12 +161,16 @@ protected:
     /**
     * Two different gaze stabilization techniques: either eyes, or eyes + head
     **/
+    Vector stabilizeHead(const Vector &_dx_FP);
     Vector stabilizeEyes(const Vector &_dx_FP);
     Vector stabilizeHeadEyes(const Vector &_dx_FP, const Vector &_dx_FP_filt);
+
+    bool computeEgoMotion(const Vector &_dq_N);
 
     /**
     *
     **/
+    bool moveHead(const Vector &_dq_H);
     bool moveEyes(const Vector &_dq_E);
     bool moveHeadEyes(const Vector &_dq_HE);
 

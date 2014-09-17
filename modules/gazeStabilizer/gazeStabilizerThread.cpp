@@ -236,7 +236,14 @@ void gazeStabilizerThread::run()
 
             // 3B - Compute the stabilization command and send it to the robot.
             //      It is ctrl_mode dependent
-            if (ctrl_mode == "eyes")
+            if (ctrl_mode == "head")
+            {
+                Vector dq_H=stabilizeHead(dx_FP);
+                printMessage(0,"dq_H:\t%s\n", dq_H.toString(3,3).c_str());
+                computeEgoMotion(dq_H);
+                moveHead(dq_H);
+            }
+            else if (ctrl_mode == "eyes")
             {
                 Vector dq_E=stabilizeEyes(dx_FP);
                 printMessage(0,"dq_E:\t%s\n", dq_E.toString(3,3).c_str());
@@ -246,6 +253,7 @@ void gazeStabilizerThread::run()
             {
                 Vector dq_HE=stabilizeHeadEyes(dx_FP,dx_FP_filt);
                 printMessage(0,"dq_HE:\t%s\n", dq_HE.toString(3,3).c_str());
+                computeEgoMotion(dq_HE.subVector(0,2));
                 moveHeadEyes(dq_HE);
             }
         }
@@ -256,13 +264,55 @@ void gazeStabilizerThread::run()
     }
 }
 
-bool gazeStabilizerThread::calibrateIMU()
+bool gazeStabilizerThread::computeEgoMotion(const Vector &_dq_N)
 {
-    printMessage(1,"Calibrating IMU...\n");
-    IMUCalibratedAvg.resize(3,0.0);
-    IMUCalib.clear();
-    isIMUCalibrated=false;
-    return true;
+    if (src_mode == "inertial")
+    {
+        Vector dq_TN(6,0.0);
+        dq_TN.setSubvector(0,dq_T);
+        dq_TN.setSubvector(3,_dq_N);
+        printMessage(1,"dq_TN:\t%s\n", dq_TN.toString(3,3).c_str());
+        Vector d2R_dq_TN = CTRL_DEG2RAD * dq_TN;
+
+        dx_FP_ego    = compute_dxFP_kinematics(d2R_dq_TN);
+        dx_FP_ego[0] = 0;   dx_FP_ego[1] = 0;   dx_FP_ego[2] = 0;
+        printMessage(0,"dx_FP_ego:\t%s\t\n", dx_FP_ego.toString(3,3).c_str());
+        return true;
+    }
+    else
+        return false;
+}
+
+Vector gazeStabilizerThread::stabilizeHead(const Vector &_dx_FP)
+{
+    // 0  - Take only the rotational part of the velocity of the
+    //      fixation point, because we will only compensate that with the head
+    Vector dx_FP = _dx_FP.subVector(3,5);
+    
+    // 1  - Convert x_FP from root to RF_E
+    Vector xFP_E = root2Eyes(xFP_R);
+    printMessage(2,"xFP_E:\t%s\n", xFP_E.toString(3,3).c_str());
+
+    // 2  - Compute J_H, that is the jacobian of the head joints alone
+    // 2A - attach the fixation point to the neck chain
+    Matrix HN = eye(4);
+    HN(0,3)   = xFP_E(0);
+    HN(1,3)   = xFP_E(1);
+    HN(2,3)   = xFP_E(2);
+    chainNeck -> setHN(HN);
+
+    // 2B - compute J_N
+    Matrix J_N  = chainNeck -> GeoJacobian();
+
+    // 2C - take only the last three rows belonging to the head joints
+    Matrix J_Np = J_N.submatrix(3,5,3,5);
+    printMessage(3,"J_Np:\n%s\n",J_Np.toString(3,3).c_str());
+
+    // 2D - remove the fixation point from the neck chain
+    chainNeck -> setHN(eye(4,4));
+
+    // 3 - Return J_N# * dx_FP
+    return -CTRL_RAD2DEG * (pinv(J_Np) * dx_FP);
 }
 
 Vector gazeStabilizerThread::stabilizeEyes(const Vector &_dx_FP)
@@ -278,78 +328,34 @@ Vector gazeStabilizerThread::stabilizeEyes(const Vector &_dx_FP)
     return dq_E;
 }
 
-Vector gazeStabilizerThread::root2Eyes(const Vector &_v)
-{
-    Vector v=_v;
-    Matrix H_RE = chainNeck->getH();        // matrix from root to RF_E
-    v.push_back(1);
-    return SE3inv(H_RE) * v;
-}
-
 Vector gazeStabilizerThread::stabilizeHeadEyes(const Vector &_dx_FP, const Vector &_dx_FP_filt)
 {
-    // 0  - Take only the rotational part of the velocity of the
-    //      fixation point, because we will only compensate that with the head
-    Vector dx_FP = _dx_FP_filt.subVector(3,5);
-    
-    // 1  - Convert x_FP from root to RF_E
-    Vector xFP_E = root2Eyes(xFP_R);
-    printMessage(2,"xFP_E:\t%s\n", xFP_E.toString(3,3).c_str());
-
-    // 2  - Compute J_H, that is the jacobian of the head joints alone
-    // 2A - attach the fixation point to the neck chain
-    Matrix HN = eye(4);
-    HN(0,3)   = xFP_E(0);
-    HN(1,3)   = xFP_E(1);
-    HN(2,3)   = xFP_E(2);
-    chainNeck -> setHN(HN);
-
-    // 2B - compute J_H
-    Matrix J_H  = chainNeck -> GeoJacobian();
-
-    // 2C - take only the last three rows belonging to the head joints
-    Matrix J_Hp = J_H.submatrix(3,5,3,5);
-    printMessage(3,"J_Hp:\n%s\n",J_Hp.toString(3,3).c_str());
-
-    // 2D - remove the fixation point from the neck chain
-    chainNeck -> setHN(eye(4,4));
-
-    // 3 - Compute dq_HE = J_H# * dx_FP  
-    Matrix J_H_pinv = pinv(J_Hp); 
-
-    Vector dq_H = -CTRL_RAD2DEG * (J_H_pinv * dx_FP);
-    Vector dq_HE(6,0.0);
-    dq_HE.setSubvector(0,dq_H);
-
-    Vector dq_TN(6,0.0);
-    dq_TN.setSubvector(0,dq_T);
-    dq_TN.setSubvector(3,dq_H);
-    printMessage(1,"dq_TN:\t%s\n", dq_TN.toString(3,3).c_str());
-
+    Vector dq_NE(6,0.0);
+    Vector dq_N(3,0.0);
     Vector dq_E(3,0.0);
+    dq_N = stabilizeHead(_dx_FP);
+    dq_NE.setSubvector(0,dq_N);
+
     if(src_mode == "torso")// || src_mode == "inertial")
     {
+        Vector dq_TN(6,0.0);
+        dq_TN.setSubvector(0,dq_T);
+        dq_TN.setSubvector(3,dq_N);
         Vector d2R_dq_TN = CTRL_DEG2RAD * dq_TN;
+        printMessage(1,"dq_TN:\t%s\n", dq_TN.toString(3,3).c_str());
+
         Vector dx_FP_2   = compute_dxFP_kinematics(d2R_dq_TN);
         printMessage(0,"dx_FP_ego:\t%s\t\n", dx_FP_2.toString(3,3).c_str());
         dq_E=stabilizeEyes(dx_FP_2);
-    }
-    if (src_mode == "inertial")
-    {
-        Vector d2R_dq_TN = CTRL_DEG2RAD * dq_TN;
-        dx_FP_ego    = compute_dxFP_kinematics(d2R_dq_TN);
-        dx_FP_ego[0] = 0.0;       dx_FP_ego[1] = 0.0;       dx_FP_ego[2] = 0.0;
-        printMessage(0,"dx_FP_ego:\t%s\t\n", dx_FP_ego.toString(3,3).c_str());
-        dq_E=stabilizeEyes(_dx_FP);
     }
     else
     {
         dq_E=stabilizeEyes(_dx_FP);
     }
 
-    dq_HE.setSubvector(3,dq_E);
+    dq_NE.setSubvector(3,dq_E);
 
-    return dq_HE;
+    return dq_NE;
 }
 
 bool gazeStabilizerThread::compute_dxFP_wholeBodyMode(Vector &_dx_FP)
@@ -442,37 +448,6 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
     }
 }
 
-bool gazeStabilizerThread::compute_dxFP_torsoMode(Vector &_dx_FP)
-{
-    /*
-    * Conceptual recap:
-    * 4  - Read dq_H and dq_T (for now only dq_T;
-    *      if there is no dq_T, nothing is commanded)
-    * 4B - Compute dx_FP with compute_dxFP_kinematics
-    */
-    dq_T.resize(3,0.0);
-
-    if (inTorsoBottle = inTorsoPort->read(false))
-    {
-        // 4 - Read dq_H and dq_T (for now only dq_T;
-        //     if there is no dq_T, nothing is commanded)
-        Vector dq(6,0.0);
-        dq_T[2] = inTorsoBottle->get(0).asDouble();
-        dq_T[1] = inTorsoBottle->get(1).asDouble();
-        dq_T[0] = inTorsoBottle->get(2).asDouble();
-        dq.setSubvector(0,CTRL_DEG2RAD * dq_T);
-
-        // 4B - Compute dx_FP with compute_dxFP_kinematics
-        _dx_FP = compute_dxFP_kinematics(dq);
-        return true;
-    }
-    else
-    {
-        printMessage(1,"No signal from the torso port!\n");
-        return false;
-    }
-}
-
 Vector gazeStabilizerThread::compute_dxFP_inertial(Vector &_gyro)
 {
     printMessage(0,"Gyro: \t%s\n",_gyro.toString(3,3).c_str());
@@ -521,6 +496,37 @@ Vector gazeStabilizerThread::compute_dxFP_inertial(Vector &_gyro)
     return _dx_FP;
 }
 
+bool gazeStabilizerThread::compute_dxFP_torsoMode(Vector &_dx_FP)
+{
+    /*
+    * Conceptual recap:
+    * 4  - Read dq_H and dq_T (for now only dq_T;
+    *      if there is no dq_T, nothing is commanded)
+    * 4B - Compute dx_FP with compute_dxFP_kinematics
+    */
+    dq_T.resize(3,0.0);
+
+    if (inTorsoBottle = inTorsoPort->read(false))
+    {
+        // 4 - Read dq_H and dq_T (for now only dq_T;
+        //     if there is no dq_T, nothing is commanded)
+        Vector dq(6,0.0);
+        dq_T[2] = inTorsoBottle->get(0).asDouble();
+        dq_T[1] = inTorsoBottle->get(1).asDouble();
+        dq_T[0] = inTorsoBottle->get(2).asDouble();
+        dq.setSubvector(0,CTRL_DEG2RAD * dq_T);
+
+        // 4B - Compute dx_FP with compute_dxFP_kinematics
+        _dx_FP = compute_dxFP_kinematics(dq);
+        return true;
+    }
+    else
+    {
+        printMessage(1,"No signal from the torso port!\n");
+        return false;
+    }
+}
+
 Vector gazeStabilizerThread::compute_dxFP_kinematics(Vector &_dq)
 {
     if (_dq.size() != 6)
@@ -547,7 +553,7 @@ Vector gazeStabilizerThread::compute_dxFP_kinematics(Vector &_dq)
     return J_TN * _dq;
 }
 
-bool gazeStabilizerThread::moveHeadEyes(const Vector &_dq_HE)
+bool gazeStabilizerThread::moveHead(const Vector &_dq_H)
 {
     VectorOf<int> jointsToSet;
     if (!areJointsHealthyAndSet(jointsToSet,"velocity"))
@@ -561,7 +567,7 @@ bool gazeStabilizerThread::moveHeadEyes(const Vector &_dq_HE)
     }
 
     // Move the head
-    printMessage(3,"Moving neck to: %s\n",_dq_HE.subVector(0,2).toString(3,3).c_str());
+    printMessage(3,"Moving neck to: %s\n",_dq_H.toString(3,3).c_str());
     std::vector<int> Ejoints;  // indexes of the joints to control
     Ejoints.push_back(0);
     Ejoints.push_back(1);
@@ -571,22 +577,19 @@ bool gazeStabilizerThread::moveHeadEyes(const Vector &_dq_HE)
     if (if_mode == "vel2")
     {
         int nJnts = 3;
-        ivelH2 -> velocityMove(nJnts,Ejoints.data(),_dq_HE.data());
+        ivelH2 -> velocityMove(nJnts,Ejoints.data(),_dq_H.data());
     }
     else if (if_mode == "vel1")
     {
-        ivelH1 -> velocityMove(Ejoints[0],_dq_HE(0));
-        ivelH1 -> velocityMove(Ejoints[1],_dq_HE(1));
-        ivelH1 -> velocityMove(Ejoints[2],_dq_HE(2));
+        ivelH1 -> velocityMove(Ejoints[0],_dq_H(0));
+        ivelH1 -> velocityMove(Ejoints[1],_dq_H(1));
+        ivelH1 -> velocityMove(Ejoints[2],_dq_H(2));
     }
     else
     {
         printMessage(0,"if_mode is neither vel1 or vel2. No velocity will be sent.\n");
         return false;
     }
-
-    // Move the eyes
-    moveEyes(_dq_HE.subVector(3,5));
 
     return true;
 }
@@ -628,6 +631,15 @@ bool gazeStabilizerThread::moveEyes(const Vector &_dq_E)
         return false;
     }
     return true;
+}
+
+bool gazeStabilizerThread::moveHeadEyes(const Vector &_dq_HE)
+{
+    bool ret=1;
+    ret = ret && moveHead(_dq_HE.subVector(0,2));
+    ret = ret && moveEyes(_dq_HE.subVector(3,5));
+
+    return ret;
 }
 
 void gazeStabilizerThread::updateEyeChain(iKinChain &_eye, const string &_eyeType)
@@ -788,6 +800,15 @@ bool gazeStabilizerThread::calibrateIMUMeasurements()
     return false;
 }
 
+bool gazeStabilizerThread::calibrateIMU()
+{
+    printMessage(1,"Calibrating IMU...\n");
+    IMUCalibratedAvg.resize(3,0.0);
+    IMUCalib.clear();
+    isIMUCalibrated=false;
+    return true;
+}
+
 bool gazeStabilizerThread::set_calib_IMU(bool _cIMU)
 {
     calib_IMU=_cIMU;
@@ -829,7 +850,7 @@ bool gazeStabilizerThread::set_src_mode(const string &_srcm)
 
 bool gazeStabilizerThread::set_ctrl_mode(const string &_ctrlm)
 {
-    if (_ctrlm == "eyes" || _ctrlm == "headEyes")
+    if (_ctrlm == "head" || _ctrlm == "eyes" || _ctrlm == "headEyes")
     {
         ctrl_mode = _ctrlm;
         return true;
@@ -872,6 +893,14 @@ bool gazeStabilizerThread::goHome()
         return true;
     }
     return false;
+}
+
+Vector gazeStabilizerThread::root2Eyes(const Vector &_v)
+{
+    Vector v=_v;
+    Matrix H_RE = chainNeck->getH();        // matrix from root to RF_E
+    v.push_back(1);
+    return SE3inv(H_RE) * v;
 }
 
 int gazeStabilizerThread::printMessage(const int l, const char *f, ...) const
