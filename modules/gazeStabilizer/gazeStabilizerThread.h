@@ -176,6 +176,11 @@ protected:
     bool calibrateIMUMeasurements();
 
     /**
+     * Converts a vector expressed into root reference frame to eyes' RF
+    **/
+    Vector root2Eyes(const Vector &_v);
+
+    /**
      * Check the state of each joint to be controlled
      * @param  jointsToSet vector of integers that defines the joints to be set
      * @param  _s mode to set. It can be either "position" or "velocity"
