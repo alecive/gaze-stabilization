@@ -472,7 +472,10 @@ Vector gazeStabilizerThread::compute_dxFP_inertial(Vector &_gyro)
     }
     if ((fabs(gyrX)<gyrobiasstability) && (fabs(gyrY)<gyrobiasstability) &&
         (fabs(gyrZ)<gyrobiasstability))
+    {
+        dx_FP_ego.resize(6,0.0);
         dx_FP.resize(J_E.rows(),0.0);
+    }
 
     // 6B - Do the magic 
     else
