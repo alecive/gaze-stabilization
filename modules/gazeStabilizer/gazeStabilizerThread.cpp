@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <iomanip>
 
-#define GYRO_BIAS_STABILITY_IMU_CALIB      1.0     // [deg/s]
+#define GYRO_BIAS_STABILITY_IMU_CALIB      2.0     // [deg/s]
 #define GYRO_BIAS_STABILITY                3.0     // [deg/s]
 
 gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v, string &_if_mode,
@@ -211,8 +211,8 @@ void gazeStabilizerThread::run()
             printMessage(4,"J_E:\n%s\n",   J_E.toString(3,3).c_str());
 
             // 3A - Compute the velocity of the fixation point. It is src_mode dependent
-            dx_FP.resize(6,0.0);
-            dx_FP_filt.resize(6,0.0);
+            // dx_FP.resize(6,0.0);
+            // dx_FP_filt.resize(6,0.0);
 
             if (src_mode == "torso")
             {
@@ -241,7 +241,7 @@ void gazeStabilizerThread::run()
                 Vector dq_H=stabilizeHead(dx_FP);
                 printMessage(0,"dq_H:\t%s\n", dq_H.toString(3,3).c_str());
                 computeEgoMotion(dq_H);
-                moveHead(dq_H);
+                // moveHead(dq_H);
             }
             else if (ctrl_mode == "eyes")
             {
@@ -251,10 +251,18 @@ void gazeStabilizerThread::run()
             }
             else if (ctrl_mode == "headEyes")
             {
-                Vector dq_HE=stabilizeHeadEyes(dx_FP,dx_FP_filt);
-                printMessage(0,"dq_HE:\t%s\n", dq_HE.toString(3,3).c_str());
-                computeEgoMotion(dq_HE.subVector(0,2));
-                moveHeadEyes(dq_HE);
+                Vector dq_NE=stabilizeHeadEyes(dx_FP,dx_FP_filt);
+                printMessage(0,"dq_NE:\t%s\n", dq_NE.toString(3,3).c_str());
+                for (int i = 0; i < 6; i++)
+                {
+                    if (dq_NE[i]>40.0)
+                    {
+                        printf("\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tBAMMMMMMMMMMMMMMMMMMMMMMMMMM\n");
+                        printf("\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tBAMMMMMMMMMMMMMMMMMMMMMMMMMM\n");
+                    }
+                }
+                computeEgoMotion(dq_NE.subVector(0,2));
+                // moveHeadEyes(dq_HE);
             }
         }
         else
@@ -312,7 +320,9 @@ Vector gazeStabilizerThread::stabilizeHead(const Vector &_dx_FP)
     chainNeck -> setHN(eye(4,4));
 
     // 3 - Return J_N# * dx_FP
-    return -CTRL_RAD2DEG * (pinv(J_Np) * dx_FP);
+    Matrix J_N_pinv = pinv(J_Np);
+    printMessage(3,"J_N_pinv:\n%s\n",J_N_pinv.toString(3,3).c_str());
+    return -CTRL_RAD2DEG * (J_N_pinv * dx_FP);
 }
 
 Vector gazeStabilizerThread::stabilizeEyes(const Vector &_dx_FP)
@@ -434,18 +444,22 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
 
         // w_filt = filt->filt(w);
         w_filt = w;
-        _dx_FP      = compute_dxFP_inertial(w)-dx_FP_ego;
+        _dx_FP      = compute_dxFP_inertial(w);
+        printMessage(0,"dx_FP_clea:%s\n", dx_FP.toString(3,3).c_str());
+        _dx_FP = _dx_FP+dx_FP_ego;
         // _dx_FP_filt = compute_dxFP_inertial(w_filt);
         _dx_FP_filt = _dx_FP;
         dx_FP_ego.resize(6,0.0);
-
-        return true;
     }
     else
     {
-        printMessage(0,"No signal from the IMU!\n");
-        return false;
+        printMessage(0,"dx_FP_clea:%s\n", dx_FP.toString(3,3).c_str());
+        _dx_FP = _dx_FP+dx_FP_ego;
+        // _dx_FP_filt = compute_dxFP_inertial(w_filt);
+        _dx_FP_filt = _dx_FP;
+        dx_FP_ego.resize(6,0.0);
     }
+    return true;
 }
 
 Vector gazeStabilizerThread::compute_dxFP_inertial(Vector &_gyro)
@@ -775,7 +789,7 @@ bool gazeStabilizerThread::calibrateIMUMeasurements()
         double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ;
         IMUCalib.push_back(w);
 
-        if (IMUCalib.size() == 200)
+        if (IMUCalib.size() == 300)
         {
             Vector v(3,0.0);
             for (int i = 0; i < 3; i++)
