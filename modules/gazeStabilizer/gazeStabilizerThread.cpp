@@ -5,8 +5,8 @@
 #include <unistd.h>
 #include <iomanip>
 
-#define GYRO_BIAS_STABILITY_IMU_CALIB      2.0     // [deg/s]
-#define GYRO_BIAS_STABILITY                3.0     // [deg/s]
+#define GYRO_BIAS_STABILITY_IMU_CALIB      1.1     // [deg/s]
+#define GYRO_BIAS_STABILITY                4.0     // [deg/s]
 
 gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v, string &_if_mode,
                                            string &_src_mode, string &_ctrl_mode, bool _calib_IMU) :
@@ -229,10 +229,10 @@ void gazeStabilizerThread::run()
                 dx_FP_filt = dx_FP;
             }
             printMessage(0,"dx_FP     :\t%s\n", dx_FP.toString(3,3).c_str());
-            if (src_mode=="inertial")
-            {
-                printMessage(1,"dx_FP_filt:\t%s\n", dx_FP_filt.toString(3,3).c_str());
-            }
+            // if (src_mode=="inertial")
+            // {
+            //     printMessage(1,"dx_FP_filt:\t%s\n", dx_FP_filt.toString(3,3).c_str());
+            // }
 
             // 3B - Compute the stabilization command and send it to the robot.
             //      It is ctrl_mode dependent
@@ -241,7 +241,7 @@ void gazeStabilizerThread::run()
                 Vector dq_H=stabilizeHead(dx_FP);
                 printMessage(0,"dq_H:\t%s\n", dq_H.toString(3,3).c_str());
                 computeEgoMotion(dq_H);
-                // moveHead(dq_H);
+                moveHead(dq_H);
             }
             else if (ctrl_mode == "eyes")
             {
@@ -257,12 +257,11 @@ void gazeStabilizerThread::run()
                 {
                     if (dq_NE[i]>40.0)
                     {
-                        printf("\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tBAMMMMMMMMMMMMMMMMMMMMMMMMMM\n");
-                        printf("\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tBAMMMMMMMMMMMMMMMMMMMMMMMMMM\n");
+                        printf("\t\t\t\t\t\t\t\t\t\t\t\tBAMMMMMMMMMMMMMMMMMMMMMMMMMM\n");
                     }
                 }
                 computeEgoMotion(dq_NE.subVector(0,2));
-                // moveHeadEyes(dq_HE);
+                moveHeadEyes(dq_NE);
             }
         }
         else
@@ -445,16 +444,17 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
         // w_filt = filt->filt(w);
         w_filt = w;
         _dx_FP      = compute_dxFP_inertial(w);
-        printMessage(0,"dx_FP_clea:%s\n", dx_FP.toString(3,3).c_str());
-        _dx_FP = _dx_FP+dx_FP_ego;
+        printMessage(0,"dx_FP_clea: %s\n", dx_FP.toString(3,3).c_str());
+        _dx_FP = _dx_FP;
         // _dx_FP_filt = compute_dxFP_inertial(w_filt);
         _dx_FP_filt = _dx_FP;
         dx_FP_ego.resize(6,0.0);
     }
     else
     {
-        printMessage(0,"dx_FP_clea:%s\n", dx_FP.toString(3,3).c_str());
-        _dx_FP = _dx_FP+dx_FP_ego;
+        printMessage(0,"No signal from the IMU!\n");
+        printMessage(0,"dx_FP_clea: %s\n", dx_FP.toString(3,3).c_str());
+        _dx_FP = _dx_FP;
         // _dx_FP_filt = compute_dxFP_inertial(w_filt);
         _dx_FP_filt = _dx_FP;
         dx_FP_ego.resize(6,0.0);
@@ -480,15 +480,16 @@ Vector gazeStabilizerThread::compute_dxFP_inertial(Vector &_gyro)
     // 6A - Filter out the noise on the gyro readouts
     Vector dx_FP(3,0.0);
     double gyrobiasstability=calib_IMU?GYRO_BIAS_STABILITY_IMU_CALIB:GYRO_BIAS_STABILITY;
-    if (robot=="iCubSim")
-    {
-        gyrobiasstability/=3;
-    }
+    // if (robot=="iCubSim")
+    // {
+    //     gyrobiasstability/=3;
+    // }
+    
     if ((fabs(gyrX)<gyrobiasstability) && (fabs(gyrY)<gyrobiasstability) &&
         (fabs(gyrZ)<gyrobiasstability))
     {
-        dx_FP_ego.resize(6,0.0);
-        dx_FP.resize(J_E.rows(),0.0);
+        // dx_FP_ego.resize(6,0.0);
+        // dx_FP.resize(J_E.rows(),0.0);
     }
 
     // 6B - Do the magic 
