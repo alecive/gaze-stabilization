@@ -21,13 +21,13 @@ gazeEvaluatorThread::gazeEvaluatorThread(int _rate, string _name, string _robot,
 
 bool gazeEvaluatorThread::threadInit()
 {
-    inPort       ->open(("/"+name+"/img:i").c_str());
-    outPort  ->open(("/"+name+"/optFlow:o").c_str());
-    imgPortOutMod   ->open(("/"+name+"/optFlowModule:o").c_str());
-    portOutModAvg   ->open(("/"+name+"/optFlowModuleAvg:o").c_str());
+    inPort        -> open(("/"+name+"/img:i").c_str());
+    outPort       -> open(("/"+name+"/optFlow:o").c_str());
+    imgPortOutMod -> open(("/"+name+"/optFlowModule:o").c_str());
+    portOutModAvg -> open(("/"+name+"/optFlowModuleAvg:o").c_str());
 
     Network::connect("/icub/camcalib/left/out",("/"+name+"/img:i").c_str());
-    Network::connect("/icub/cam/left",("/"+name+"/img:i").c_str());
+    // Network::connect("/icubSim/cam/left",("/"+name+"/img:i").c_str());
     Network::connect(("/"+name+"/optFlow:o").c_str(),"/gazeEvalFlow");
     Network::connect(("/"+name+"/optFlowModule:o").c_str(),"/gazeEvalFlowModule");
 

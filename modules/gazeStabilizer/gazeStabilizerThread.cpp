@@ -342,7 +342,7 @@ Vector gazeStabilizerThread::stabilizeHeadEyes(const Vector &_dx_FP, const Vecto
     Vector dq_NE(6,0.0);
     Vector dq_N(3,0.0);
     Vector dq_E(3,0.0);
-    dq_N = stabilizeHead(_dx_FP);
+    dq_N = stabilizeHead(_dx_FP_filt);
     dq_NE.setSubvector(0,dq_N);
 
     if(src_mode == "torso")// || src_mode == "inertial")
@@ -441,22 +441,24 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
         double gyrY = inIMUBottle -> get(7).asDouble(); w[1] = gyrY-IMUCalibratedAvg[1];
         double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ-IMUCalibratedAvg[2];
 
-        // w_filt = filt->filt(w);
-        w_filt = w;
+        w_filt = filt->filt(w);
+        // w_filt = w;
+        
         _dx_FP      = compute_dxFP_inertial(w);
-        printMessage(1,"dx_FP_clea: %s\n", dx_FP.toString(3,3).c_str());
-        _dx_FP = _dx_FP;
-        // _dx_FP_filt = compute_dxFP_inertial(w_filt);
-        _dx_FP_filt = _dx_FP;
+        _dx_FP_filt = compute_dxFP_inertial(w_filt);
+        // _dx_FP_filt = _dx_FP;
+        
         dx_FP_ego.resize(6,0.0);
     }
     else
     {
         printMessage(0,"No signal from the IMU!\n");
-        printMessage(1,"dx_FP_clea: %s\n", dx_FP.toString(3,3).c_str());
-        _dx_FP = _dx_FP;
-        // _dx_FP_filt = compute_dxFP_inertial(w_filt);
-        _dx_FP_filt = _dx_FP;
+        printMessage(0,"\n");
+        
+        _dx_FP      = _dx_FP;
+        _dx_FP_filt = _dx_FP_filt;
+        // _dx_FP_filt = _dx_FP;
+
         dx_FP_ego.resize(6,0.0);
     }
     return true;
