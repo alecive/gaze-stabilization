@@ -1,6 +1,6 @@
 #include "torsoControllerThread.h"
 
-#define CTRL_PERIOD 2
+#define CTRL_PERIOD 0
 
 string int_to_string( const int a )
 {
@@ -198,8 +198,7 @@ void torsoControllerThread::run()
 
 bool torsoControllerThread::processWayPoint()
 {
-    if (wayPoints[currentWaypoint].name == "START      " ||
-        wayPoints[currentWaypoint].name == "END        ")
+    if (wayPoints[currentWaypoint].name == "START      ")
     {
         printMessage(1,"Putting torso in home position..\n");
         goHome();
@@ -208,6 +207,12 @@ bool torsoControllerThread::processWayPoint()
         {
             return false;
         }
+    }
+    else if (wayPoints[currentWaypoint].name == "END        ")
+    {
+        printMessage(1,"Putting torso in home position..\n");
+        goHome();
+        return false;
     }
     else
     {

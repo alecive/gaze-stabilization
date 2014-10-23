@@ -167,7 +167,7 @@ bool gazeStabilizerThread::threadInit()
 
 void gazeStabilizerThread::run()
 {
-    if (calib_IMU)
+    if (calib_IMU && src_mode == "inertial")
     {
         if (!isIMUCalibrated)
         {
@@ -229,10 +229,10 @@ void gazeStabilizerThread::run()
                 dx_FP_filt = dx_FP;
             }
             printMessage(0,"dx_FP     :\t%s\n", dx_FP.toString(3,3).c_str());
-            // if (src_mode=="inertial")
-            // {
-            //     printMessage(1,"dx_FP_filt:\t%s\n", dx_FP_filt.toString(3,3).c_str());
-            // }
+            if (src_mode=="inertial")
+            {
+                printMessage(1,"dx_FP_filt:\t%s\n", dx_FP_filt.toString(3,3).c_str());
+            }
 
             // 3B - Compute the stabilization command and send it to the robot.
             //      It is ctrl_mode dependent
@@ -257,7 +257,7 @@ void gazeStabilizerThread::run()
                 {
                     if (dq_NE[i]>40.0)
                     {
-                        printf("\t\t\t\t\t\t\t\t\t\t\t\tBAMMMMMMMMMMMMMMMMMMMMMMMMMM\n");
+                        printf("\t\t\t\t\t\t\t\t\t\t\t\tBAMMMMMMMMMMMMMM\n");
                     }
                 }
                 computeEgoMotion(dq_NE.subVector(0,2));
@@ -444,7 +444,7 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
         // w_filt = filt->filt(w);
         w_filt = w;
         _dx_FP      = compute_dxFP_inertial(w);
-        printMessage(0,"dx_FP_clea: %s\n", dx_FP.toString(3,3).c_str());
+        printMessage(1,"dx_FP_clea: %s\n", dx_FP.toString(3,3).c_str());
         _dx_FP = _dx_FP;
         // _dx_FP_filt = compute_dxFP_inertial(w_filt);
         _dx_FP_filt = _dx_FP;
@@ -453,7 +453,7 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
     else
     {
         printMessage(0,"No signal from the IMU!\n");
-        printMessage(0,"dx_FP_clea: %s\n", dx_FP.toString(3,3).c_str());
+        printMessage(1,"dx_FP_clea: %s\n", dx_FP.toString(3,3).c_str());
         _dx_FP = _dx_FP;
         // _dx_FP_filt = compute_dxFP_inertial(w_filt);
         _dx_FP_filt = _dx_FP;
