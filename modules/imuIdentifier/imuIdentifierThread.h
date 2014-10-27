@@ -91,9 +91,12 @@ protected:
     int    numWaypoints;
     int            step;    // Flag to know in which step the thread is
 
+    bool posCtrlFlag;
+
     BufferedPort<Bottle> *outPort;
     BufferedPort<Bottle> *inIMUPort;     // port for reading from the inertial sensor
     Bottle               *inIMUBottle;   // bottle used for the port
+    Vector                w_old;         // Old IMU value
 
     bool processIMU();
 

@@ -63,6 +63,9 @@ imuIdentifierThread::imuIdentifierThread(int _rate, string _name, string _robot,
     inIMUPort   = new BufferedPort<Bottle>;
     outPort     = new BufferedPort<Bottle>;
 
+    w_old.resize(3,0.0);
+    posCtrlFlag = true;
+
     //******************* ITERATIONS ******************
     iterations=rf.check("iterations",Value(1)).asInt();
     printf(("*** "+name+": number of iterations set to %g\n").c_str(),iterations);
@@ -153,10 +156,11 @@ bool imuIdentifierThread::threadInit()
 
 void imuIdentifierThread::run()
 {
+    // printMessage(3,"Time1: %g\n",yarp::os::Time::now()-timeNow);
     switch (step)
     {
         case 0:
-            Time::delay(0.1); // only to avoid a printing issue in the terminal
+            Time::delay(0.4); // only to avoid a printing issue in the terminal
             printMessage(0,"Starting..\n");
             step++;
             break;
@@ -226,42 +230,54 @@ bool imuIdentifierThread::setHeadCtrlModes(const string &_s)
 
 bool imuIdentifierThread::processIMU()
 {
+    Bottle &b=outPort->prepare();
+    b.clear();
+
+    // Add the current waypoint
+    for (size_t i = 0; i < 3; i++)
+    {
+        b.addDouble(wayPoints[currentWaypoint].vels(i));
+    }
+
+    // Add the reference values of the PIDs
+    for (size_t i = 0; i < 3; i++)
+    {
+        double ref = 0.0;
+        ipidH->getReference(i,&ref);
+        b.addDouble(ref);
+    }
+
+    // Add the encoder value
+    iencsH->getEncoders(encsH->data());
+    for (size_t i = 0; i < 3; i++)
+    {
+        b.addDouble((*encsH)(i));
+    }
+
+    // Read the imu. If true, add the imu; if false, add the old values
+    Vector w(3,0.0);
     if (inIMUBottle = inIMUPort->read(false))
     {
-        Vector w(3,0.0);
         double gyrX = inIMUBottle -> get(6).asDouble(); w[0] = gyrX;
         double gyrY = inIMUBottle -> get(7).asDouble(); w[1] = gyrY;
         double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ;
-
-        iencsH->getEncoders(encsH->data());
-
-        printMessage(2,"Gyro: \t%s\n",w.toString(3,3).c_str());
-
-        Bottle &b=outPort->prepare();
-        b.clear();
-        for (size_t i = 0; i < 3; i++)
-        {
-            b.addDouble(wayPoints[currentWaypoint].vels(i));
-        }
-        for (size_t i = 0; i < 3; i++)
-        {
-            double ref;
-            ipidH->getReference(i,&ref);
-            b.addDouble(ref);
-        }
-        for (size_t i = 0; i < 3; i++)
-        {
-            b.addDouble((*encsH)(i));
-        }
-        for (size_t i = 0; i < 3; i++)
-        {
-            b.addDouble(w(i));
-        }
-        outPort->write();
-
-        return true;
+        w_old = w;
     }
-    return false;
+    else
+    {
+        w = w_old;
+    }
+    printMessage(2,"Gyro: \t%s\n",w.toString(3,3).c_str());
+
+    for (size_t i = 0; i < 3; i++)
+    {
+        b.addDouble(w(i));
+    }
+
+    // write on the port
+    outPort->write();
+
+    return true;
 }
 
 bool imuIdentifierThread::goHome()
@@ -286,15 +302,23 @@ bool imuIdentifierThread::goHome()
 bool imuIdentifierThread::processWayPoint()
 {
     processIMU();
+    
     if (wayPoints[currentWaypoint].name == "START     " ||
         wayPoints[currentWaypoint].name == "END       " ||
         wayPoints[currentWaypoint].name == "MIDDLE    " )
     {
-        printMessage(1,"Putting head in home position..\n");
-        goHome();
+        if (posCtrlFlag)
+        {
+            printMessage(1,"Putting head in home position..\n");
+            goHome();
+            posCtrlFlag = false;
+        }
 
-        Time::delay(CTRL_PERIOD);
-        return false;
+        if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
+        {
+            posCtrlFlag = true;
+            return false;
+        }
     }
     else
     {
@@ -349,7 +373,7 @@ bool imuIdentifierThread::redoCycle()
     }
     else
     {
-        step            = 0;
+        step = 0;
         return true;
     }
     return true;
