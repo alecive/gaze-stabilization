@@ -193,7 +193,7 @@ bool imuIdentifierThread::setHeadCtrlModes(const string &_s)
 {
     printMessage(1,"Setting %s mode for head joints..\n",_s.c_str());
 
-    if (_s!="position" || _s!="velocity")
+    if (_s!="position" && _s!="velocity")
         return false;
 
     VectorOf<int> jointsToSet;
