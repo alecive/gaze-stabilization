@@ -1,6 +1,6 @@
 #include "imuIdentifierThread.h"
 
-#define CTRL_PERIOD 2
+#define CTRL_PERIOD 4.0
 
 string int_to_string( const int a )
 {
@@ -189,7 +189,7 @@ void imuIdentifierThread::run()
     }
 }
 
-bool imuIdentifierThread::setHeadCtrlModes(const string _s)
+bool imuIdentifierThread::setHeadCtrlModes(const string &_s)
 {
     printMessage(1,"Setting %s mode for head joints..\n",_s.c_str());
 
@@ -219,6 +219,8 @@ bool imuIdentifierThread::setHeadCtrlModes(const string _s)
                              jointsToSet.getFirst(),
                              modes.getFirst());
 
+    Time::delay(0.1);
+
     return true;
 }
 
@@ -233,7 +235,7 @@ bool imuIdentifierThread::processIMU()
 
         iencsH->getEncoders(encsH->data());
 
-        printMessage(1,"Gyro: \t%s\n",w.toString(3,3).c_str());
+        printMessage(2,"Gyro: \t%s\n",w.toString(3,3).c_str());
 
         Bottle &b=outPort->prepare();
         b.clear();
@@ -265,8 +267,19 @@ bool imuIdentifierThread::processIMU()
 bool imuIdentifierThread::goHome()
 {
     setHeadCtrlModes("position");
-    Vector pos0(6,0.0);
-    iposH -> positionMove(pos0.data());
+    // Vector pos0(6,0.0);
+    // iposH -> positionMove(pos0.data());
+
+    VectorOf<int> jointsToSet;
+    jointsToSet.push_back(0);
+    jointsToSet.push_back(1);
+    jointsToSet.push_back(2);
+    Vector poss(3,0.0);
+
+    iposH -> positionMove(jointsToSet.size(),
+                          jointsToSet.getFirst(),
+                          poss.data());
+
     return true;
 }
 
@@ -280,22 +293,28 @@ bool imuIdentifierThread::processWayPoint()
         printMessage(1,"Putting head in home position..\n");
         goHome();
 
-        if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
-        {
-            return false;
-        }
+        Time::delay(CTRL_PERIOD);
+        return false;
     }
     else
     {
         Vector jls = wayPoints[currentWaypoint].jntlims;
-        Vector vls(6,0.0);
-        vls.setSubvector(0,wayPoints[currentWaypoint].vels);
+        Vector vls = wayPoints[currentWaypoint].vels;
         bool flag = false;
 
         iencsH->getEncoders(encsH->data());
         yarp::sig::Vector head = *encsH;
 
-        ivelH -> velocityMove(vls.data());
+        // ivelH -> velocityMove(vls.data());
+
+        VectorOf<int> jointsToSet;
+        jointsToSet.push_back(0);
+        jointsToSet.push_back(1);
+        jointsToSet.push_back(2);
+    
+        ivelH -> velocityMove(jointsToSet.size(),
+                              jointsToSet.getFirst(),
+                              vls.data());
 
         for (int i = 0; i < 3; i++)
         {
