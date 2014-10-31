@@ -99,7 +99,7 @@ bool gazeStabilizerThread::threadInit()
     ddH = new PolyDriver();
     if (!ddH->open(OptH))
     {
-        printMessage(0,"ERROR: could not open head PolyDriver!\n");
+        yError("could not open head PolyDriver!\n");
         return false;
     }
 
@@ -116,7 +116,7 @@ bool gazeStabilizerThread::threadInit()
 
     if (!ok)
     {
-        printMessage(0,"\nERROR: Problems acquiring head interfaces!!!!\n");
+        yFatal(" Problems acquiring head interfaces!!!!");
         return false;
     }
 
@@ -136,7 +136,7 @@ bool gazeStabilizerThread::threadInit()
     ddT = new PolyDriver();
     if (!ddT->open(OptT))
     {
-        printMessage(0,"ERROR: could not open torso PolyDriver!\n");
+        yError("could not open torso PolyDriver!\n");
         return false;
     }
 
@@ -148,7 +148,7 @@ bool gazeStabilizerThread::threadInit()
 
     if (!ok)
     {
-        printMessage(0,"\nERROR: Problems acquiring torso interfaces!!!!\n");
+        yFatal(" Problems acquiring torso interfaces!!!!");
         return false;
     }
 
@@ -231,10 +231,10 @@ void gazeStabilizerThread::run()
                 compute_dxFP_wholeBodyMode(dx_FP);
                 dx_FP_filt = dx_FP;
             }
-            printMessage(0,"dx_FP     :\t%s\n", dx_FP.toString(3,3).c_str());
+            yInfo("  dx_FP:       %s", dx_FP.toString(3,3).c_str());
             if (src_mode=="inertial")
             {
-                printMessage(1,"dx_FP_filt:\t%s\n", dx_FP_filt.toString(3,3).c_str());
+                yDebug(" dx_FP_filt:  %s", dx_FP_filt.toString(3,3).c_str());
             }
 
             // 3B - Compute the stabilization command and send it to the robot.
@@ -242,34 +242,34 @@ void gazeStabilizerThread::run()
             if (ctrl_mode == "head")
             {
                 Vector dq_H=stabilizeHead(dx_FP);
-                printMessage(0,"dq_H:\t%s\n", dq_H.toString(3,3).c_str());
+                yInfo("  dq_H:\t%s", dq_H.toString(3,3).c_str());
                 computeEgoMotion(dq_H);
                 moveHead(dq_H);
             }
             else if (ctrl_mode == "eyes")
             {
                 Vector dq_E=stabilizeEyes(dx_FP);
-                printMessage(0,"dq_E:\t%s\n", dq_E.toString(3,3).c_str());
+                yInfo("  dq_E:\t%s", dq_E.toString(3,3).c_str());
                 moveEyes(dq_E);
             }
             else if (ctrl_mode == "headEyes")
             {
                 Vector dq_NE=stabilizeHeadEyes(dx_FP,dx_FP_filt);
-                printMessage(0,"dq_NE:\t%s\n", dq_NE.toString(3,3).c_str());
+                yInfo("  dq_NE:\t%s", dq_NE.toString(3,3).c_str());
                 for (int i = 0; i < 6; i++)
                 {
                     if (dq_NE[i]>40.0)
                     {
-                        printf("\t\t\t\t\t\t\t\t\t\t\t\tBAMMMMMMMMMMMMMM\n");
+                        yFatal("One or more computed neck velocities are higher than 40.0!\n");
                     }
                 }
-                computeEgoMotion(dq_NE.subVector(0,2));
+                // computeEgoMotion(dq_NE.subVector(0,2));
                 moveHeadEyes(dq_NE);
             }
         }
         else
         {
-            printMessage(0,"computeFixationPointData() returned false!\n");
+            yInfo("  computeFixationPointData() returned false!\n");
         }
     }
 }
@@ -286,7 +286,7 @@ bool gazeStabilizerThread::computeEgoMotion(const Vector &_dq_N)
 
         dx_FP_ego    = compute_dxFP_kinematics(d2R_dq_TN);
         dx_FP_ego[0] = 0;   dx_FP_ego[1] = 0;   dx_FP_ego[2] = 0;
-        printMessage(0,"dx_FP_ego:\t%s\t\n", dx_FP_ego.toString(3,3).c_str());
+        yInfo("  dx_FP_ego:\t%s\t", dx_FP_ego.toString(3,3).c_str());
         return true;
     }
     else
@@ -357,7 +357,7 @@ Vector gazeStabilizerThread::stabilizeHeadEyes(const Vector &_dx_FP, const Vecto
         printMessage(1,"dq_TN:\t%s\n", dq_TN.toString(3,3).c_str());
 
         Vector dx_FP_2   = compute_dxFP_kinematics(d2R_dq_TN);
-        printMessage(0,"dx_FP_ego:\t%s\t\n", dx_FP_2.toString(3,3).c_str());
+        yInfo("  dx_FP_ego:\t%s", dx_FP_2.toString(3,3).c_str());
         dq_E=stabilizeEyes(dx_FP_2);
     }
     else
@@ -418,7 +418,7 @@ bool gazeStabilizerThread::compute_dxFP_wholeBodyMode(Vector &_dx_FP)
     }
     else
     {
-        printMessage(0,"No signal from the WB port!\n");
+        yWarning("No signal from the WB port!\n");
         return false;
     }
 }
@@ -460,9 +460,8 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
         }
         else
         {
-            w_filt = 11.0 * integrator->integrate(w);            
+            w_filt = 1.0 * integrator->integrate(w);            
         }
-
         
         _dx_FP      = compute_dxFP_inertial(w);
         _dx_FP_filt = compute_dxFP_inertial(w_filt);
@@ -472,8 +471,7 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
     }
     else
     {
-        printMessage(0,"No signal from the IMU!\n");
-        printMessage(0,"\n");
+        yWarning("No signal from the IMU!\n");
         
         _dx_FP      = _dx_FP;
         _dx_FP_filt = _dx_FP_filt;
@@ -486,7 +484,7 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
 
 Vector gazeStabilizerThread::compute_dxFP_inertial(Vector &_gyro)
 {
-    printMessage(0,"Gyro: \t%s\n",_gyro.toString(3,3).c_str());
+    yInfo("  Gyro: \t%s",_gyro.toString(3,3).c_str());
 
     double gyrX = _gyro(0);
     double gyrY = _gyro(1);
@@ -524,7 +522,7 @@ Vector gazeStabilizerThread::compute_dxFP_inertial(Vector &_gyro)
         H(1,3) = 0;
         H(2,3) = 0;
 
-        // printMessage(0,"w: \t%s\tH:\n%s\n",w.toString(3,3).c_str(),H.toString(3,3).c_str());
+        // yInfo("  w: \t%s\tH:\n%s\n",w.toString(3,3).c_str(),H.toString(3,3).c_str());
         _gyro.push_back(1.0);
         _gyro = CTRL_DEG2RAD * H * _gyro;
         _gyro.pop_back();
@@ -570,7 +568,7 @@ Vector gazeStabilizerThread::compute_dxFP_kinematics(Vector &_dq)
 {
     if (_dq.size() != 6)
     {
-        printMessage(0,"ERROR: compute_dxFP_kinematics got a wrong dq vector! Requested 6, got %i\n",_dq.size());
+        yError("compute_dxFP_kinematics got a wrong dq vector! Requested 6, got %i\n",_dq.size());
         return Vector(3,0.0);
     }
 
@@ -626,7 +624,7 @@ bool gazeStabilizerThread::moveHead(const Vector &_dq_H)
     }
     else
     {
-        printMessage(0,"if_mode is neither vel1 or vel2. No velocity will be sent.\n");
+        yWarning("if_mode is neither vel1 or vel2. No velocity will be sent.");
         return false;
     }
 
@@ -666,7 +664,7 @@ bool gazeStabilizerThread::moveEyes(const Vector &_dq_E)
     }
     else
     {
-        printMessage(0,"if_mode is neither vel1 or vel2. No velocity will be sent.\n");
+        yWarning("if_mode is neither vel1 or vel2. No velocity will be sent.");
         return false;
     }
     return true;
@@ -799,7 +797,7 @@ bool gazeStabilizerThread::calibrateIMUMeasurements()
     // On the simulator we don't have to calibrate the IMU
     if (robot == "icubSim")
     {
-        printMessage(0,"On the simulator we don't have to calibrate the IMU!\n");
+        yWarning("On the simulator we don't have to calibrate the IMU!");
         return true;
     }
 
@@ -824,7 +822,7 @@ bool gazeStabilizerThread::calibrateIMUMeasurements()
             }
             
             IMUCalibratedAvg=v;
-            printMessage(0,"IMU has been calibrated! Calibrated values: %s\n",IMUCalibratedAvg.toString(3,3).c_str());
+            yInfo("  IMU has been calibrated! Calibrated values: %s",IMUCalibratedAvg.toString(3,3).c_str());
             return true;
         }
 
@@ -973,16 +971,16 @@ void gazeStabilizerThread::closePort(Contactable *_port)
 
 void gazeStabilizerThread::threadRelease()
 {
-    printMessage(0,"Moving head to home position.. \n");
+    yInfo("  Moving head to home position..");
         stopStabilization();
         // goHome();
 
-    printMessage(0,"Closing ports...\n");
+    yInfo("  Closing ports...");
         closePort(inTorsoPort);
         closePort(inIMUPort);
         closePort(inWBPort);
 
-    printMessage(0,"Closing controllers..\n");
+    yInfo("  Closing controllers..");
         ddH->close();
         delete ddH;
         ddH = NULL;
