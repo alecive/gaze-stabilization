@@ -70,6 +70,9 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_ro
 
     filt = new Filter(num,den,y0);
 
+    // Create the integrator
+    integrator = new Integrator(_rate,Vector(3,0.0));
+
     isRunning = false;
     isIMUCalibrated = false;
     IMUCalibratedAvg.resize(3,0.0);
@@ -441,8 +444,25 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
         double gyrY = inIMUBottle -> get(7).asDouble(); w[1] = gyrY-IMUCalibratedAvg[1];
         double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ-IMUCalibratedAvg[2];
 
-        w_filt = filt->filt(w);
+        // w_filt = filt->filt(w);
         // w_filt = w;
+
+        double gyrobiasstability=calib_IMU?GYRO_BIAS_STABILITY_IMU_CALIB:GYRO_BIAS_STABILITY;
+        if (robot=="icubSim")
+        {
+            gyrobiasstability/=3;
+        }
+
+        if ((fabs(w[0])<gyrobiasstability) && (fabs(w[1])<gyrobiasstability) &&
+        (fabs(w[2])<gyrobiasstability))
+        {
+            integrator->reset(Vector(3,0.0));
+        }
+        else
+        {
+            w_filt = 11.0 * integrator->integrate(w);            
+        }
+
         
         _dx_FP      = compute_dxFP_inertial(w);
         _dx_FP_filt = compute_dxFP_inertial(w_filt);
@@ -482,10 +502,10 @@ Vector gazeStabilizerThread::compute_dxFP_inertial(Vector &_gyro)
     // 6A - Filter out the noise on the gyro readouts
     Vector dx_FP(3,0.0);
     double gyrobiasstability=calib_IMU?GYRO_BIAS_STABILITY_IMU_CALIB:GYRO_BIAS_STABILITY;
-    // if (robot=="iCubSim")
-    // {
-    //     gyrobiasstability/=3;
-    // }
+    if (robot=="icubSim")
+    {
+        gyrobiasstability/=3;
+    }
     
     if ((fabs(gyrX)<gyrobiasstability) && (fabs(gyrY)<gyrobiasstability) &&
         (fabs(gyrZ)<gyrobiasstability))
@@ -493,7 +513,6 @@ Vector gazeStabilizerThread::compute_dxFP_inertial(Vector &_gyro)
         // dx_FP_ego.resize(6,0.0);
         // dx_FP.resize(J_E.rows(),0.0);
     }
-
     // 6B - Do the magic 
     else
     {
@@ -1013,6 +1032,8 @@ void gazeStabilizerThread::threadRelease()
             delete filt;
             filt = NULL;
         }
+
+        delete integrator; integrator = NULL;
 }
 
 // empty line to make gcc happy

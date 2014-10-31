@@ -99,6 +99,9 @@ protected:
     Vector den;
     Vector y0;
 
+    // LowPass filter for IMU signal
+    iCub::ctrl::Integrator *integrator;
+
     // Internal matrices and variables
     Vector xFP_R;
     Matrix J_E;
