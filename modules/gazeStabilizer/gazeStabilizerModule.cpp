@@ -395,6 +395,8 @@ class gazeStabilizer: public RFModule
 */
 int main(int argc, char * argv[])
 {
+    Network yarp;
+
     ResourceFinder rf;
     rf.setVerbose(false);
     rf.setDefaultContext("gazeStabilization");
@@ -418,8 +420,7 @@ int main(int argc, char * argv[])
         cout << endl;
         return 0;
     }
-
-    Network yarp;
+    
     if (!yarp.checkNetwork())
     {
         printf("No Network!!!\n");
