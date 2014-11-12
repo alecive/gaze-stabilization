@@ -6,21 +6,21 @@
 
     <module>
         <name>dataDumper</name>
-        <parameters>--name /gs/left/out --type image --rxTime</parameters>
+        <parameters>--name /gs/left/out --type image --rxTime --addVideo</parameters>
         <node>icub13</node>
         <stdio></stdio>
         <tag>gsLeftOut</tag>
     </module>
     <module>
         <name>dataDumper</name>
-        <parameters>--name /gs/flow --type image --rxTime</parameters>
+        <parameters>--name /gs/flow --type image --rxTime --addVideo</parameters>
         <node>icub13</node>
         <stdio></stdio>
         <tag>gsFlow</tag>
     </module>
     <module>
         <name>dataDumper</name>
-        <parameters>--name /gs/flowModule --type image --rxTime</parameters>
+        <parameters>--name /gs/flowModule --type image --rxTime --addVideo</parameters>
         <node>icub13</node>
         <stdio></stdio>
         <tag>gsFlowModule</tag>

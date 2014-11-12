@@ -4,32 +4,32 @@
     <module>
         <name>yarpview</name>
         <parameters>--name /gazeEvalFlow --x 0 --y   0 --w 400 --h 400</parameters>
-        <node>localhost</node>
+        <node>icub15</node>
         <stdio></stdio>
         <tag>yarpview</tag>
     </module>
     <module>
         <name>yarpview</name>
         <parameters>--name /gazeEvalModule --x 440 --y   0 --w 400 --h 400</parameters>
-        <node>localhost</node>
+        <node>icub15</node>
         <stdio></stdio>
         <tag>yarpview</tag>
     </module>
     <module>
         <name>gazeEvaluator</name>
-        <node>localhost</node>
+        <node>icub15</node>
         <stdio></stdio>
         <tag>gazeEvaluator</tag>
     </module>
     <module>
         <name>gazeStabilizer</name>
-        <node>localhost</node>
+        <node>icub15</node>
         <stdio></stdio>
         <tag>gazeStabilizer</tag>
     </module>
     <module>
         <name>torsoController</name>
-        <node>localhost</node>
+        <node>icub15</node>
         <stdio></stdio>
         <tag>torsoController</tag>
     </module>
