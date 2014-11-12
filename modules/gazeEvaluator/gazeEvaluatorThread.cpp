@@ -86,7 +86,6 @@ void gazeEvaluatorThread::run()
             imageInNext = *tmp;
         }
 
-        
         cv::Mat imgInNext((IplImage*)imageInNext.getIplImage());
         cv::Mat imgInPrev((IplImage*)imageInPrev.getIplImage());
 
