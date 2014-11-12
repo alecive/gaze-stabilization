@@ -71,7 +71,7 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_ro
     filt = new Filter(num,den,y0);
 
     // Create the integrator
-    integrator = new Integrator(_rate,Vector(3,0.0));
+    integrator = new Integrator(_rate/1000.0,Vector(3,0.0));
 
     isRunning = false;
     isIMUCalibrated = false;
