@@ -101,6 +101,7 @@ protected:
 
     // LowPass filter for IMU signal
     iCub::ctrl::Integrator *integrator;
+    double integrator_gain;
 
     // Internal matrices and variables
     Vector xFP_R;
@@ -217,7 +218,7 @@ protected:
 public:
     // CONSTRUCTOR
     gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v, string &_if_mode,
-                         string &_src_mode, string &_ctrl_mode, bool _calib_IMU);
+                         string &_src_mode, string &_ctrl_mode, bool _calib_IMU, double _int_gain);
     // INIT
     virtual bool threadInit();
     // RUN

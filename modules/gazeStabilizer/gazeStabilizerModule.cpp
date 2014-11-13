@@ -103,6 +103,7 @@ class gazeStabilizer: public RFModule
     private:
         gazeStabilizerThread *gazeStabilizerThrd;
         RpcServer             rpcSrvr;
+        string                name;
 
     public:
         gazeStabilizer()
@@ -260,7 +261,7 @@ class gazeStabilizer: public RFModule
 
         bool configure(ResourceFinder &rf)
         {
-            string name      = "gazeStabilizer";
+            name             = "gazeStabilizer";
             string robot     =           "icub";
             int    verbosity =                0; // verbosity
             int    rate      =               10; // rate of the gazeStabilizerThread
@@ -268,40 +269,40 @@ class gazeStabilizer: public RFModule
             string src_mode  =       "inertial"; // it can be either torso or inertial or wholeBody
             string ctrl_mode =           "eyes"; // it can be either head, eyes or headEyes
             bool   calib_IMU =             true;
-            double int_gain  =              2.0; // the gein sent to the integrator
+            double int_gain  =              1.0; // the gein sent to the integrator
 
             //******************* NAME ******************
                 if (rf.check("name"))
                 {
                     name = rf.find("name").asString();
-                    yDebug("*** Module name set to %s",name.c_str());  
+                    yDebug(("["+name+"] Module name set to %s").c_str(),name.c_str());  
                 }
-                else yDebug("*** Module name set to default, i.e. %s",name.c_str());
+                else yDebug(("["+name+"] Module name set to default, i.e. %s").c_str(),name.c_str());
                 setName(name.c_str());
 
             //****************** rate ******************
                 if (rf.check("rate"))
                 {
                     rate = rf.find("rate").asInt();
-                    yDebug(("*** "+name+": thread working at %i ms").c_str(), rate);
+                    yDebug(("["+name+"] thread working at %i ms").c_str(), rate);
                 }
-                else yDebug(("*** "+name+": could not find rate in the conf file; using %i ms as default.").c_str(), rate);
+                else yDebug(("["+name+"] could not find rate in the conf file; using %i ms as default.").c_str(), rate);
 
             //******************* VERBOSE ******************
                 if (rf.check("verbosity"))
                 {
                     verbosity = rf.find("verbosity").asInt();
-                    yDebug(("*** "+name+": verbosity set to %i").c_str(),verbosity);
+                    yDebug(("["+name+"] verbosity set to %i").c_str(),verbosity);
                 }
-                else yDebug(("*** "+name+": could not find verbosity option in the conf file; using %i as default.").c_str(),verbosity);
+                else yDebug(("["+name+"] could not find verbosity option in the conf file; using %i as default.").c_str(),verbosity);
 
             //******************* ROBOT ******************
                 if (rf.check("robot"))
                 {
                     robot = rf.find("robot").asString();
-                    yDebug(("*** "+name+": robot is %s").c_str(),robot.c_str());
+                    yDebug(("["+name+"] robot is %s").c_str(),robot.c_str());
                 }
-                else yDebug(("*** "+name+": could not find robot option in the conf file; using %s as default.").c_str(),robot.c_str());
+                else yDebug(("["+name+"] could not find robot option in the conf file; using %s as default.").c_str(),robot.c_str());
 
             //************** INTERFACE_MODE **************
                 if (rf.check("if_mode"))
@@ -309,11 +310,11 @@ class gazeStabilizer: public RFModule
                     if (rf.find("if_mode").asString() == "vel1" || rf.find("if_mode").asString() == "vel2")
                     {
                         if_mode = rf.find("if_mode").asString();
-                        yDebug(("*** "+name+": if_mode set to %s").c_str(),if_mode.c_str());
+                        yDebug(("["+name+"] if_mode set to %s").c_str(),if_mode.c_str());
                     }
-                    else yDebug(("*** "+name+": if_mode option found but not allowed; using %s as default.").c_str(),if_mode.c_str());
+                    else yDebug(("["+name+"] if_mode option found but not allowed; using %s as default.").c_str(),if_mode.c_str());
                 }
-                else yDebug(("*** "+name+": could not find if_mode option in the conf file; using %s as default.").c_str(),if_mode.c_str());
+                else yDebug(("["+name+"] could not find if_mode option in the conf file; using %s as default.").c_str(),if_mode.c_str());
 
             //************** SOURCE_MODE **************
                 if (rf.check("src_mode"))
@@ -321,11 +322,11 @@ class gazeStabilizer: public RFModule
                     if (rf.find("src_mode").asString() == "torso" || rf.find("src_mode").asString() == "inertial" || rf.find("src_mode").asString() == "wholeBody")
                     {
                         src_mode = rf.find("src_mode").asString();
-                        yDebug(("*** "+name+": src_mode set to %s").c_str(),src_mode.c_str());
+                        yDebug(("["+name+"] src_mode set to %s").c_str(),src_mode.c_str());
                     }
-                    else yDebug(("*** "+name+": src_mode option found but not allowed; using %s as default.").c_str(),src_mode.c_str());
+                    else yDebug(("["+name+"] src_mode option found but not allowed; using %s as default.").c_str(),src_mode.c_str());
                 }
-                else yDebug(("*** "+name+": could not find src_mode option in the conf file; using %s as default.").c_str(),src_mode.c_str());
+                else yDebug(("["+name+"] could not find src_mode option in the conf file; using %s as default.").c_str(),src_mode.c_str());
 
             //************** CONTROL_MODE **************
                 if (rf.check("ctrl_mode"))
@@ -335,26 +336,35 @@ class gazeStabilizer: public RFModule
                         rf.find("ctrl_mode").asString() == "headEyes")
                     {
                         ctrl_mode = rf.find("ctrl_mode").asString();
-                        yDebug(("*** "+name+": ctrl_mode set to %s").c_str(),ctrl_mode.c_str());
+                        yDebug(("["+name+"] ctrl_mode set to %s").c_str(),ctrl_mode.c_str());
                     }
-                    else yDebug(("*** "+name+": ctrl_mode option found but not allowed; using %s as default.").c_str(),ctrl_mode.c_str());
+                    else yDebug(("["+name+"] ctrl_mode option found but not allowed; using %s as default.").c_str(),ctrl_mode.c_str());
                 }
-                else yDebug(("*** "+name+": could not find ctrl_mode option in the conf file; using %s as default.").c_str(),ctrl_mode.c_str());
+                else yDebug(("["+name+"] could not find ctrl_mode option in the conf file; using %s as default.").c_str(),ctrl_mode.c_str());
 
             //**************** CALIB_IMU *****************
                 if (rf.check("calib_IMU"))
                 {
                     calib_IMU=true;
-                    yDebug(("*** "+name+": calib_IMU option has been set to %s.").c_str(),calib_IMU?"true":"false");
+                    yDebug(("["+name+"] calib_IMU option has been set to %s.").c_str(),calib_IMU?"true":"false");
                 }
                 else
                 {
-                    yDebug(("*** "+name+": could not find calib_IMU option in the conf file; using %s as default.").c_str(),calib_IMU?"true" :"false");
+                    yDebug(("["+name+"] could not find calib_IMU option in the conf file; using %s as default.").c_str(),calib_IMU?"true" :"false");
                 }
+
+            //************* INTEGRATOR GAIN **************
+                if (rf.check("integrator_gain"))
+                {
+                    int_gain = rf.find("integrator_gain").asDouble();
+                    yDebug(("["+name+"] integrator gain set to %g").c_str(),int_gain);
+                }
+                else yDebug(("["+name+"] integrator gain set to default, i.e. %g").c_str(),int_gain);
 
 
             //****************** THREAD ******************
-                gazeStabilizerThrd = new gazeStabilizerThread(rate, name, robot, verbosity, if_mode, src_mode, ctrl_mode, calib_IMU);
+                gazeStabilizerThrd = new gazeStabilizerThread(rate, name, robot, verbosity, if_mode,
+                                                              src_mode, ctrl_mode, calib_IMU, int_gain);
 
                 gazeStabilizerThrd -> start();
                 bool strt = 1;
@@ -362,10 +372,10 @@ class gazeStabilizer: public RFModule
                 {
                     delete gazeStabilizerThrd;
                     gazeStabilizerThrd = 0;
-                    yError(" gazeStabilizerThread wasn't instantiated!!");
+                    yError("["+name+"] gazeStabilizerThread wasn't instantiated!!");
                     return false;
                 }
-                yInfo("GAZE STABILIZER: gazeStabilizerThread istantiated...");
+                yInfo("["+name+"] gazeStabilizerThread istantiated...");
 
             //************************ RPC ***********************
                 rpcSrvr.open(("/"+name+"/rpc:i").c_str());
@@ -376,7 +386,7 @@ class gazeStabilizer: public RFModule
 
         bool close()
         {
-            yInfo("GAZE STABILIZER: Stopping threads..");
+            yInfo(("["+name+"] Stopping threads..").c_str());
             if (gazeStabilizerThrd)
             {
                 gazeStabilizerThrd->stop();

@@ -7,12 +7,11 @@
 
 #define GYRO_BIAS_STABILITY_IMU_CALIB   1.1     // [deg/s]
 #define GYRO_BIAS_STABILITY             4.0     // [deg/s]
-#define INTEGRATOR_GAIN                 1.0
 
 gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v, string &_if_mode,
-                                           string &_src_mode, string &_ctrl_mode, bool _calib_IMU) :
+                                           string &_src_mode, string &_ctrl_mode, bool _calib_IMU, double _int_gain) :
                                            RateThread(_rate), name(_name), robot(_robot), verbosity(_v), if_mode(_if_mode),
-                                           src_mode(_src_mode), ctrl_mode(_ctrl_mode), calib_IMU(_calib_IMU)
+                                           src_mode(_src_mode), ctrl_mode(_ctrl_mode), calib_IMU(_calib_IMU), integrator_gain(_int_gain)
 {
     eyeL = new iCubEye("left_v2");
     eyeR = new iCubEye("right_v2");
@@ -457,13 +456,13 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
         }
         else
         {
-            // w_filt = INTEGRATOR_GAIN * integrator->integrate(w);
+            // w_filt = integrator_gain * integrator->integrate(w);
         }
         
         _dx_FP      = compute_dxFP_inertial(w);
         // _dx_FP_filt = compute_dxFP_inertial(w_filt);
         _dx_FP_filt = _dx_FP;
-        _dx_FP_filt.setSubvector(3,INTEGRATOR_GAIN*integrator->integrate(_dx_FP.subVector(3,5)));
+        _dx_FP_filt.setSubvector(3,integrator_gain*integrator->integrate(_dx_FP.subVector(3,5)));
 
         
         dx_FP_ego.resize(6,0.0);
@@ -474,7 +473,7 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
         
         _dx_FP      = _dx_FP;
         _dx_FP_filt = _dx_FP_filt;
-        _dx_FP_filt.setSubvector(3,INTEGRATOR_GAIN*integrator->integrate(_dx_FP.subVector(3,5)));
+        _dx_FP_filt.setSubvector(3,integrator_gain*integrator->integrate(_dx_FP.subVector(3,5)));
 
         // _dx_FP_filt = _dx_FP;
 
