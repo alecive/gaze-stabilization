@@ -268,39 +268,40 @@ class gazeStabilizer: public RFModule
             string src_mode  =       "inertial"; // it can be either torso or inertial or wholeBody
             string ctrl_mode =           "eyes"; // it can be either head, eyes or headEyes
             bool   calib_IMU =             true;
+            double int_gain  =              2.0; // the gein sent to the integrator
 
             //******************* NAME ******************
                 if (rf.check("name"))
                 {
                     name = rf.find("name").asString();
-                    printf("*** Module name set to %s\n",name.c_str());  
+                    yDebug("*** Module name set to %s",name.c_str());  
                 }
-                else printf("*** Module name set to default, i.e. %s\n",name.c_str());
+                else yDebug("*** Module name set to default, i.e. %s",name.c_str());
                 setName(name.c_str());
 
             //****************** rate ******************
                 if (rf.check("rate"))
                 {
                     rate = rf.find("rate").asInt();
-                    printf(("*** "+name+": thread working at %i ms\n").c_str(), rate);
+                    yDebug(("*** "+name+": thread working at %i ms").c_str(), rate);
                 }
-                else printf(("*** "+name+": could not find rate in the conf file; using %i ms as default.\n").c_str(), rate);
+                else yDebug(("*** "+name+": could not find rate in the conf file; using %i ms as default.").c_str(), rate);
 
             //******************* VERBOSE ******************
                 if (rf.check("verbosity"))
                 {
                     verbosity = rf.find("verbosity").asInt();
-                    printf(("*** "+name+": verbosity set to %i\n").c_str(),verbosity);
+                    yDebug(("*** "+name+": verbosity set to %i").c_str(),verbosity);
                 }
-                else printf(("*** "+name+": could not find verbosity option in the conf file; using %i as default.\n").c_str(),verbosity);
+                else yDebug(("*** "+name+": could not find verbosity option in the conf file; using %i as default.").c_str(),verbosity);
 
             //******************* ROBOT ******************
                 if (rf.check("robot"))
                 {
                     robot = rf.find("robot").asString();
-                    printf(("*** "+name+": robot is %s\n").c_str(),robot.c_str());
+                    yDebug(("*** "+name+": robot is %s").c_str(),robot.c_str());
                 }
-                else printf(("*** "+name+": could not find robot option in the conf file; using %s as default.\n").c_str(),robot.c_str());
+                else yDebug(("*** "+name+": could not find robot option in the conf file; using %s as default.").c_str(),robot.c_str());
 
             //************** INTERFACE_MODE **************
                 if (rf.check("if_mode"))
@@ -308,11 +309,11 @@ class gazeStabilizer: public RFModule
                     if (rf.find("if_mode").asString() == "vel1" || rf.find("if_mode").asString() == "vel2")
                     {
                         if_mode = rf.find("if_mode").asString();
-                        printf(("*** "+name+": if_mode set to %s\n").c_str(),if_mode.c_str());
+                        yDebug(("*** "+name+": if_mode set to %s").c_str(),if_mode.c_str());
                     }
-                    else printf(("*** "+name+": if_mode option found but not allowed; using %s as default.\n").c_str(),if_mode.c_str());
+                    else yDebug(("*** "+name+": if_mode option found but not allowed; using %s as default.").c_str(),if_mode.c_str());
                 }
-                else printf(("*** "+name+": could not find if_mode option in the conf file; using %s as default.\n").c_str(),if_mode.c_str());
+                else yDebug(("*** "+name+": could not find if_mode option in the conf file; using %s as default.").c_str(),if_mode.c_str());
 
             //************** SOURCE_MODE **************
                 if (rf.check("src_mode"))
@@ -320,11 +321,11 @@ class gazeStabilizer: public RFModule
                     if (rf.find("src_mode").asString() == "torso" || rf.find("src_mode").asString() == "inertial" || rf.find("src_mode").asString() == "wholeBody")
                     {
                         src_mode = rf.find("src_mode").asString();
-                        printf(("*** "+name+": src_mode set to %s\n").c_str(),src_mode.c_str());
+                        yDebug(("*** "+name+": src_mode set to %s").c_str(),src_mode.c_str());
                     }
-                    else printf(("*** "+name+": src_mode option found but not allowed; using %s as default.\n").c_str(),src_mode.c_str());
+                    else yDebug(("*** "+name+": src_mode option found but not allowed; using %s as default.").c_str(),src_mode.c_str());
                 }
-                else printf(("*** "+name+": could not find src_mode option in the conf file; using %s as default.\n").c_str(),src_mode.c_str());
+                else yDebug(("*** "+name+": could not find src_mode option in the conf file; using %s as default.").c_str(),src_mode.c_str());
 
             //************** CONTROL_MODE **************
                 if (rf.check("ctrl_mode"))
@@ -334,21 +335,21 @@ class gazeStabilizer: public RFModule
                         rf.find("ctrl_mode").asString() == "headEyes")
                     {
                         ctrl_mode = rf.find("ctrl_mode").asString();
-                        printf(("*** "+name+": ctrl_mode set to %s\n").c_str(),ctrl_mode.c_str());
+                        yDebug(("*** "+name+": ctrl_mode set to %s").c_str(),ctrl_mode.c_str());
                     }
-                    else printf(("*** "+name+": ctrl_mode option found but not allowed; using %s as default.\n").c_str(),ctrl_mode.c_str());
+                    else yDebug(("*** "+name+": ctrl_mode option found but not allowed; using %s as default.").c_str(),ctrl_mode.c_str());
                 }
-                else printf(("*** "+name+": could not find ctrl_mode option in the conf file; using %s as default.\n").c_str(),ctrl_mode.c_str());
+                else yDebug(("*** "+name+": could not find ctrl_mode option in the conf file; using %s as default.").c_str(),ctrl_mode.c_str());
 
             //**************** CALIB_IMU *****************
                 if (rf.check("calib_IMU"))
                 {
                     calib_IMU=true;
-                    printf(("*** "+name+": calib_IMU option has been set to %s.\n").c_str(),calib_IMU?"true":"false");
+                    yDebug(("*** "+name+": calib_IMU option has been set to %s.").c_str(),calib_IMU?"true":"false");
                 }
                 else
                 {
-                    printf(("*** "+name+": could not find calib_IMU option in the conf file; using %s as default.\n").c_str(),calib_IMU?"true" :"false");
+                    yDebug(("*** "+name+": could not find calib_IMU option in the conf file; using %s as default.").c_str(),calib_IMU?"true" :"false");
                 }
 
 
@@ -361,10 +362,10 @@ class gazeStabilizer: public RFModule
                 {
                     delete gazeStabilizerThrd;
                     gazeStabilizerThrd = 0;
-                    cout << "\nERROR!!! gazeStabilizerThread wasn't instantiated!!\n";
+                    yError(" gazeStabilizerThread wasn't instantiated!!");
                     return false;
                 }
-                cout << "GAZE STABILIZER: gazeStabilizerThread istantiated...\n";
+                yInfo("GAZE STABILIZER: gazeStabilizerThread istantiated...");
 
             //************************ RPC ***********************
                 rpcSrvr.open(("/"+name+"/rpc:i").c_str());
@@ -375,7 +376,7 @@ class gazeStabilizer: public RFModule
 
         bool close()
         {
-            cout << "GAZE STABILIZER: Stopping threads.." << endl;
+            yInfo("GAZE STABILIZER: Stopping threads..");
             if (gazeStabilizerThrd)
             {
                 gazeStabilizerThrd->stop();
@@ -405,25 +406,27 @@ int main(int argc, char * argv[])
 
     if (rf.check("help"))
     {    
-        cout << endl << "Options:" << endl;
-        cout << "   --context    path:   where to find the called resource. Default gazeStabilization." << endl;
-        cout << "   --from       from:   the name of the .ini file. Default gazeStabilizer.ini" << endl;
-        cout << "   --name       name:   the name of the module. Default gazeStabilizer." << endl;
-        cout << "   --robot      robot:  the name of the robot. Default icub." << endl;
-        cout << "   --rate       rate:   the period used by the thread. Default 10ms." << endl;
-        cout << "   --verbosity  int:    verbosity level. Default 0." << endl;
-        cout << "   --if_mode    mode:   interface to use for velocity control. It can be either vel1 or vel2, default vel2." << endl;
-        cout << "   --src_mode   source: source to use for compensating. It can be either torso, inertial, or wholeBody; default torso." << endl;
-        cout << "   --ctrl_mode  ctrl:   control to use for deploying the compensation." << endl;
-        cout << "                        It can be either head, eyes or headEyes; default headEyes." << endl;
-        cout << "   --calib_IMU          flag to know if to calibrate the IMU measurements in advance or not (recommended)." << endl;
-        cout << endl;
+        yInfo("");
+        yInfo("Options:");
+        yInfo("");
+        yInfo("   --context    path:   where to find the called resource. Default gazeStabilization.");
+        yInfo("   --from       from:   the name of the .ini file. Default gazeStabilizer.ini");
+        yInfo("   --name       name:   the name of the module. Default gazeStabilizer.");
+        yInfo("   --robot      robot:  the name of the robot. Default icub.");
+        yInfo("   --rate       rate:   the period used by the thread. Default 10ms.");
+        yInfo("   --verbosity  int:    verbosity level. Default 0.");
+        yInfo("   --if_mode    mode:   interface to use for velocity control. It can be either vel1 or vel2, default vel2.");
+        yInfo("   --src_mode   source: source to use for compensating. It can be either torso, inertial, or wholeBody; default torso.");
+        yInfo("   --ctrl_mode  ctrl:   control to use for deploying the compensation.");
+        yInfo("                        It can be either head, eyes or headEyes; default headEyes.");
+        yInfo("   --calib_IMU          flag to know if to calibrate the IMU measurements in advance or not (recommended).");
+        yInfo("");
         return 0;
     }
     
     if (!yarp.checkNetwork())
     {
-        printf("No Network!!!\n");
+        yError("No Network!!!\n");
         return -1;
     }
 
