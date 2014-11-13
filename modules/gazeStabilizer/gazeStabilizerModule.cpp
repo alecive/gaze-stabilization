@@ -269,7 +269,7 @@ class gazeStabilizer: public RFModule
             string src_mode  =       "inertial"; // it can be either torso or inertial or wholeBody
             string ctrl_mode =           "eyes"; // it can be either head, eyes or headEyes
             bool   calib_IMU =             true;
-            double int_gain  =              1.0; // the gein sent to the integrator
+            double int_gain  =              2.0; // the gein sent to the integrator
 
             //******************* NAME ******************
                 if (rf.check("name"))
@@ -419,17 +419,18 @@ int main(int argc, char * argv[])
         yInfo("");
         yInfo("Options:");
         yInfo("");
-        yInfo("   --context    path:   where to find the called resource. Default gazeStabilization.");
-        yInfo("   --from       from:   the name of the .ini file. Default gazeStabilizer.ini");
-        yInfo("   --name       name:   the name of the module. Default gazeStabilizer.");
-        yInfo("   --robot      robot:  the name of the robot. Default icub.");
-        yInfo("   --rate       rate:   the period used by the thread. Default 10ms.");
-        yInfo("   --verbosity  int:    verbosity level. Default 0.");
-        yInfo("   --if_mode    mode:   interface to use for velocity control. It can be either vel1 or vel2, default vel2.");
-        yInfo("   --src_mode   source: source to use for compensating. It can be either torso, inertial, or wholeBody; default torso.");
-        yInfo("   --ctrl_mode  ctrl:   control to use for deploying the compensation.");
-        yInfo("                        It can be either head, eyes or headEyes; default headEyes.");
-        yInfo("   --calib_IMU          flag to know if to calibrate the IMU measurements in advance or not (recommended).");
+        yInfo("   --context [gazeStabilization]:  where to find the called resource.");
+        yInfo("   --from   [gazeStabilizer.ini]:  the name of the .ini file.");
+        yInfo("   --name       [gazeStabilizer]:  the name of the module.");
+        yInfo("   --robot                [icub]:  the name of the robot.");
+        yInfo("   --rate                   [10]:  the period used by the thread [ms].");
+        yInfo("   --verbosity               [0]:  verbosity level.");
+        yInfo("   --if_mode              [vel2]:  interface to use for velocity control. It can be either vel1 or vel2.");
+        yInfo("   --src_mode            [torso]:  source to use for compensating. It can be either torso, inertial, or wholeBody.");
+        yInfo("   --ctrl_mode        [headEyes]:  control to use for deploying the compensation. It can be either head, eyes or headEyes.");
+        yInfo("   --integrator_gain       [1.0]:  gain to use with the integrator. Default 1.0, recommended at least 8.0");
+        yInfo("   --calib_IMU              [on]:  flag to know if to calibrate the IMU or not (recommended).");
+        
         yInfo("");
         return 0;
     }
