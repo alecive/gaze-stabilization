@@ -229,17 +229,19 @@ public:
     bool startStabilization();
     bool  stopStabilization();
     // SET IF_MODE, SRC_MODE AND CTLR_MODE ON THE FLY
-    bool set_if_mode  (const string &_ifm);
-    bool set_src_mode (const string &_srcm);
-    bool set_ctrl_mode(const string &_ctrlm);
-    bool set_calib_IMU(      bool    _cIMU);
+    bool set_if_mode        (const string &_ifm);
+    bool set_src_mode       (const string &_srcm);
+    bool set_ctrl_mode      (const string &_ctrlm);
+    bool set_calib_IMU      (const bool   &_cIMU);
+    bool set_integrator_gain(const double &_intG);
     // CALIBRATE IMU MEASUREMENTS IN ORDER TO REMOVE THE BASELINE
     bool calibrateIMU();
     // GET IF_MODE, SRC_MODE AND CTRL_MODE
-    string get_if_mode()   { return if_mode;   };
-    string get_src_mode()  { return src_mode;  };
-    string get_ctrl_mode() { return ctrl_mode; };
-    bool   get_calib_IMU() { return calib_IMU; };
+    string get_if_mode()         { return if_mode;         };
+    string get_src_mode()        { return src_mode;        };
+    string get_ctrl_mode()       { return ctrl_mode;       };
+    bool   get_calib_IMU()       { return calib_IMU;       };
+    double get_integrator_gain() { return integrator_gain; };
     // GO HOME
     bool goHome();
 };

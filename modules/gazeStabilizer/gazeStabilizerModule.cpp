@@ -183,6 +183,11 @@ class gazeStabilizer: public RFModule
                             reply.addVocab(ack);
                             reply.addInt(gazeStabilizerThrd -> get_calib_IMU());
                         }
+                        else if (command.get(1).asString() == "integrator_gain")
+                        {
+                            reply.addVocab(ack);
+                            reply.addDouble(gazeStabilizerThrd -> get_integrator_gain());
+                        }
                         else
                             reply.addVocab(nack);
 
@@ -227,6 +232,15 @@ class gazeStabilizer: public RFModule
                         else if (command.get(1).asString() == "calib_IMU")
                         {
                             if (gazeStabilizerThrd -> set_calib_IMU(bool(command.get(2).asInt())))
+                            {
+                                reply.addVocab(ack);
+                            }
+                            else
+                                reply.addVocab(nack);
+                        }
+                        else if (command.get(1).asString() == "integrator_gain")
+                        {
+                            if (gazeStabilizerThrd -> set_integrator_gain(command.get(2).asDouble()))
                             {
                                 reply.addVocab(ack);
                             }

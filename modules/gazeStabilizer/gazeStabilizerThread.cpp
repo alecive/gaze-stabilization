@@ -846,7 +846,7 @@ bool gazeStabilizerThread::calibrateIMU()
     return true;
 }
 
-bool gazeStabilizerThread::set_calib_IMU(bool _cIMU)
+bool gazeStabilizerThread::set_calib_IMU(const bool   &_cIMU)
 {
     calib_IMU=_cIMU;
     if (_cIMU==false)
@@ -892,6 +892,17 @@ bool gazeStabilizerThread::set_ctrl_mode(const string &_ctrlm)
         ctrl_mode = _ctrlm;
         return true;
     }
+    return false;
+}
+
+bool gazeStabilizerThread::set_integrator_gain(const double &_intG)
+{
+    if (_intG < 20.0)
+    {
+        integrator_gain = _intG;
+        return true;
+    }
+
     return false;
 }
 
