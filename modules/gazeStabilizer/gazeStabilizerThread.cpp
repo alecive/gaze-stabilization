@@ -5,8 +5,9 @@
 #include <unistd.h>
 #include <iomanip>
 
-#define GYRO_BIAS_STABILITY_IMU_CALIB      1.1     // [deg/s]
-#define GYRO_BIAS_STABILITY                4.0     // [deg/s]
+#define GYRO_BIAS_STABILITY_IMU_CALIB   1.1     // [deg/s]
+#define GYRO_BIAS_STABILITY             4.0     // [deg/s]
+#define INTEGRATOR_GAIN                 1.0
 
 gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v, string &_if_mode,
                                            string &_src_mode, string &_ctrl_mode, bool _calib_IMU) :
@@ -40,10 +41,6 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_ro
     chainEyeL = eyeL -> asChain();
     chainEyeR = eyeR -> asChain();
     chainIMU  = IMU  -> asChain();
-
-    inTorsoPort = new BufferedPort<Bottle>;
-    inIMUPort   = new BufferedPort<Bottle>;
-    inWBPort    = new BufferedPort<Bottle>;
 
     xFP_R.resize(3,0.0);
     J_E.resize(3,3);
@@ -80,9 +77,9 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_ro
 
 bool gazeStabilizerThread::threadInit()
 {
-    inTorsoPort -> open(("/"+name+"/torsoController:i").c_str());
-    inIMUPort   -> open(("/"+name+"/inertial:i").c_str());
-    inWBPort    -> open(("/"+name+"/wholeBody:i").c_str());
+    inTorsoPort.open(("/"+name+"/torsoController:i").c_str());
+    inIMUPort  .open(("/"+name+"/inertial:i").c_str());
+    inWBPort   .open(("/"+name+"/wholeBody:i").c_str());
 
     Network::connect("/torsoController/gazeStabilizer:o",("/"+name+"/torsoController:i").c_str());
     Network::connect("/torsoController/rpc:o",("/"+name+"/rpc:i").c_str());
@@ -116,7 +113,7 @@ bool gazeStabilizerThread::threadInit()
 
     if (!ok)
     {
-        yFatal(" Problems acquiring head interfaces!!!!");
+        yError(" Problems acquiring head interfaces!!!!");
         return false;
     }
 
@@ -148,7 +145,7 @@ bool gazeStabilizerThread::threadInit()
 
     if (!ok)
     {
-        yFatal(" Problems acquiring torso interfaces!!!!");
+        yError(" Problems acquiring torso interfaces!!!!");
         return false;
     }
 
@@ -258,9 +255,9 @@ void gazeStabilizerThread::run()
                 yInfo("  dq_NE:\t%s", dq_NE.toString(3,3).c_str());
                 for (int i = 0; i < 6; i++)
                 {
-                    if (dq_NE[i]>40.0)
+                    if (dq_NE[i]>60.0)
                     {
-                        yFatal("One or more computed neck velocities are higher than 40.0!\n");
+                        yError("One or more computed neck velocities are higher than 60.0!\n");
                     }
                 }
                 // computeEgoMotion(dq_NE.subVector(0,2));
@@ -383,7 +380,7 @@ bool gazeStabilizerThread::compute_dxFP_wholeBodyMode(Vector &_dx_FP)
     * 8  - Compute the dq_E as if we were in torso mode..
     */
 
-    if (inWBBottle = inWBPort->read(false))
+    if (inWBBottle = inWBPort.read(false))
     {
         // 4  - Read data from the wholeBody port 
         //      (if there is no data, nothing is commanded)
@@ -434,7 +431,7 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
     * 6B - ... AND HERE!
     */
 
-    if (inIMUBottle = inIMUPort->read(false))
+    if (inIMUBottle = inIMUPort.read(false))
     {
         // 4  - Read data from the inertial sensor
         //     (if there is no data, nothing is commanded)
@@ -456,16 +453,18 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
         if ((fabs(w[0])<gyrobiasstability) && (fabs(w[1])<gyrobiasstability) &&
         (fabs(w[2])<gyrobiasstability))
         {
-            integrator->reset(Vector(3,0.0));
+            // integrator->reset(Vector(3,0.0));
         }
         else
         {
-            w_filt = 1.0 * integrator->integrate(w);            
+            // w_filt = INTEGRATOR_GAIN * integrator->integrate(w);
         }
         
         _dx_FP      = compute_dxFP_inertial(w);
-        _dx_FP_filt = compute_dxFP_inertial(w_filt);
-        // _dx_FP_filt = _dx_FP;
+        // _dx_FP_filt = compute_dxFP_inertial(w_filt);
+        _dx_FP_filt = _dx_FP;
+        _dx_FP_filt.setSubvector(3,INTEGRATOR_GAIN*integrator->integrate(_dx_FP.subVector(3,5)));
+
         
         dx_FP_ego.resize(6,0.0);
     }
@@ -475,6 +474,8 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
         
         _dx_FP      = _dx_FP;
         _dx_FP_filt = _dx_FP_filt;
+        _dx_FP_filt.setSubvector(3,INTEGRATOR_GAIN*integrator->integrate(_dx_FP.subVector(3,5)));
+
         // _dx_FP_filt = _dx_FP;
 
         dx_FP_ego.resize(6,0.0);
@@ -543,7 +544,7 @@ bool gazeStabilizerThread::compute_dxFP_torsoMode(Vector &_dx_FP)
     */
     dq_T.resize(3,0.0);
 
-    if (inTorsoBottle = inTorsoPort->read(false))
+    if (inTorsoBottle = inTorsoPort.read(false))
     {
         // 4 - Read dq_H and dq_T (for now only dq_T;
         //     if there is no dq_T, nothing is commanded)
@@ -801,7 +802,7 @@ bool gazeStabilizerThread::calibrateIMUMeasurements()
         return true;
     }
 
-    if (inIMUBottle = inIMUPort->read(false))
+    if (inIMUBottle = inIMUPort.read(false))
     {
         Vector w(3,0.0);
         double gyrX = inIMUBottle -> get(6).asDouble(); w[0] = gyrX;
@@ -957,16 +958,10 @@ int gazeStabilizerThread::printMessage(const int l, const char *f, ...) const
         return -1;
 }
 
-void gazeStabilizerThread::closePort(Contactable *_port)
+void gazeStabilizerThread::closePort(Contactable &_port)
 {
-    if (_port)
-    {
-        _port -> interrupt();
-        _port -> close();
-
-        delete _port;
-        _port = 0;
-    }
+    _port.interrupt();
+    _port.close();
 }
 
 void gazeStabilizerThread::threadRelease()
@@ -1025,12 +1020,7 @@ void gazeStabilizerThread::threadRelease()
             IMU = NULL;
         }
 
-        if (filt)
-        {
-            delete filt;
-            filt = NULL;
-        }
-
+        delete filt; filt = NULL;
         delete integrator; integrator = NULL;
 }
 

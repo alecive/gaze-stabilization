@@ -116,14 +116,14 @@ protected:
     Vector dx_FP_ego;       // 6D speed of the fixation point due to our own head movements
 
     // Input from the torsoController
-    BufferedPort<Bottle>  *inTorsoPort;   // port for reading from the torsoController
-    Bottle                *inTorsoBottle; // bottle used for the port
+    BufferedPort<Bottle>  inTorsoPort;   // port for reading from the torsoController
+    Bottle               *inTorsoBottle; // bottle used for the port
 
-    BufferedPort<Bottle>  *inIMUPort;     // port for reading from the inertial sensor
-    Bottle                *inIMUBottle;   // bottle used for the port
+    BufferedPort<Bottle>  inIMUPort;     // port for reading from the inertial sensor
+    Bottle               *inIMUBottle;   // bottle used for the port
 
-    BufferedPort<Bottle>  *inWBPort;      // port for reading neck velocities from the whole body
-    Bottle                *inWBBottle;    // bottle used for the port
+    BufferedPort<Bottle>  inWBPort;      // port for reading neck velocities from the whole body
+    Bottle               *inWBBottle;    // bottle used for the port
 
     /**
     * Updates a kinematic chain belonging to an eye.
@@ -212,7 +212,7 @@ protected:
     /**
      * Closes properly a given port
     **/
-    void closePort(yarp::os::Contactable *_port);
+    void closePort(yarp::os::Contactable &_port);
 
 public:
     // CONSTRUCTOR
