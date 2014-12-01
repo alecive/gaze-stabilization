@@ -918,6 +918,7 @@ bool gazeStabilizerThread::stopStabilization()
     dx_FP.resize(6,0.0);
     dx_FP_filt.resize(6,0.0);
     dx_FP_ego.resize(6,0.0);
+    integrator->reset(Vector(3,0.0));
     return true;
 }
 
