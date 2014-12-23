@@ -82,7 +82,15 @@ bool gazeStabilizerThread::threadInit()
 
     Network::connect("/torsoController/gazeStabilizer:o",("/"+name+"/torsoController:i").c_str());
     Network::connect("/torsoController/rpc:o",("/"+name+"/rpc:i").c_str());
-    Network::connect(("/"+robot+"/inertial").c_str(),("/"+name+"/inertial:i").c_str());
+
+    if (!Network::connect("/imuFilter/inertial:o",("/"+name+"/inertial:i").c_str()))
+    {
+        Network::connect(("/"+robot+"/inertial").c_str(),("/"+name+"/inertial:i").c_str());
+    }
+    else
+    {
+        isIMUCalibrated = true;
+    }
 
     bool ok = 1;
     Property OptH;
