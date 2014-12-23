@@ -281,9 +281,9 @@ class gazeStabilizer: public RFModule
             int    rate      =               10; // rate of the gazeStabilizerThread
             string if_mode   =           "vel2"; // it can be either vel1 or vel2
             string src_mode  =       "inertial"; // it can be either torso or inertial or wholeBody
-            string ctrl_mode =           "eyes"; // it can be either head, eyes or headEyes
+            string ctrl_mode =       "headEyes"; // it can be either head, eyes or headEyes
             bool   calib_IMU =             true;
-            double int_gain  =             10.0; // the gein sent to the integrator
+            double int_gain  =             10.0; // the gain sent to the integrator
 
             //******************* NAME ******************
                 if (rf.check("name"))
