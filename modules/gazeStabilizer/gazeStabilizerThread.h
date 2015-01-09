@@ -118,6 +118,13 @@ protected:
     BufferedPort<Bottle>  inWBPort;      // port for reading neck velocities from the whole body
     Bottle               *inWBBottle;    // bottle used for the port
 
+    int FFstate;
+    int FF_init_cnt;
+    double FF_Ts;
+    std::vector<double> Ts_tx;
+    Vector dq_NE_FF;
+    double timeNow;
+
     /**
     * Updates a kinematic chain belonging to an eye.
     **/
@@ -167,6 +174,12 @@ protected:
      * @return       [description]
      */
     Vector filterNeckVels(const Vector &_dq_N);
+
+    /**
+     * [handleFFPort description]
+     * @return [description]
+     */
+    bool handleFFPort();
 
     /**
     * Move the neck and the eyes according to their stabilization

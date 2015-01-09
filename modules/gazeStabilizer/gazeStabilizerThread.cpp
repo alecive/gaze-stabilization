@@ -5,6 +5,11 @@
 #include <unistd.h>
 #include <iomanip>
 
+#define FF_STATE_IDLE 0
+#define FF_STATE_INIT 1
+#define FF_STATE_RX   2
+#define FF_NOTX_THRES 4
+
 gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v, string &_if_mode,
                                            string &_src_mode, string &_ctrl_mode, bool _calib_IMU, double _int_gain) :
                                            RateThread(_rate), name(_name), robot(_robot), verbosity(_v), if_mode(_if_mode),
@@ -50,6 +55,11 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_ro
     isRunning = false;
     isIMUCalibrated = false;
     IMUCalibratedAvg.resize(3,0.0);
+
+    FFstate = FF_STATE_IDLE;
+    FF_init_cnt = 0;
+    FF_Ts = 0;
+    dq_NE_FF.resize(6,0.0);
 }
 
 bool gazeStabilizerThread::threadInit()
@@ -187,30 +197,27 @@ void gazeStabilizerThread::run()
         printMessage(4,"Neck: %s\n",(CTRL_RAD2DEG*(neck->getAng())).toString(3,3).c_str());
         printMessage(4,"IMU:  %s\n",(CTRL_RAD2DEG*(IMU ->getAng())).toString(3,3).c_str());
 
+        handleFFPort();
+
         // 3 - Compute Fixation Point Data (x_FP and J_E) for later use
         //          x_FP = position of the fixation point
         //          J_E  = Jacobian that relates the eyes' joints to the motion of the FP
         if (CartesianHelper::computeFixationPointData(*chainEyeL,*chainEyeR,xFP_R,J_E))
         {
-            printMessage(2,"xFP_R:\t%s\n", xFP_R.toString(3,3).c_str());
+            yDebug(" xFP_R:\t%s\n", xFP_R.toString(3,3).c_str());
             printMessage(4,"J_E:\n%s\n",   J_E.toString(3,3).c_str());
 
             // 3A - Compute the velocity of the fixation point. It is src_mode dependent
-            // dx_FP.resize(6,0.0);
-
             if (src_mode == "torso")
             {
                 compute_dxFP_torsoMode(dx_FP);
             }
-            else if (src_mode == "inertial")
+            else if (src_mode == "inertial" || src_mode == "wholeBody")
             {
+                // When in whole body mode, we would like to use the inertial measurement as well
                 compute_dxFP_inertialMode(dx_FP);
             }
-            else if (src_mode == "wholeBody")
-            {
-                compute_dxFP_wholeBodyMode(dx_FP);
-            }
-            yInfo("  dx_FP:       %s", dx_FP.toString(3,3).c_str());
+            yDebug(" dx_FP:  %s", dx_FP.toString(3,3).c_str());
 
             // 3B - Compute the stabilization command and send it to the robot.
             //      It is ctrl_mode dependent
@@ -230,13 +237,24 @@ void gazeStabilizerThread::run()
             else if (ctrl_mode == "headEyes")
             {
                 Vector dq_N = -1.0*computeNeckVels(dx_FP);
-                dq_N        = filterNeckVels(dq_N);
-                Vector dq_E = computeEyesVels(dx_FP);
+                Vector dq_E = -1.0*computeEyesVels(dx_FP);
+                // printf("%s %s\n",dq_N.toString().c_str(),dq_E.toString().c_str() );
+                dq_N = filterNeckVels(dq_N);
+                // printf("%s %s\n",dq_N.toString().c_str(),dq_E.toString().c_str() );
                 
                 Vector dq_NE(6,0.0);
                 dq_NE.setSubvector(0,dq_N);
                 dq_NE.setSubvector(3,dq_E);
                 yInfo("  dq_NE:\t%s", dq_NE.toString(3,3).c_str());
+
+                if (src_mode=="wholeBody")
+                {
+                    // Add the feedforward input (if there is one)
+                    dq_NE = dq_NE -1.0*dq_NE_FF;
+
+                    yInfo("  dq_NE_FF: %s", dq_NE_FF.toString(3,3).c_str());
+                    yInfo("  dq_NE_TOT:%s", dq_NE.toString(3,3).c_str());
+                }
                 
                 moveHeadEyes(dq_NE);
             }
@@ -248,6 +266,72 @@ void gazeStabilizerThread::run()
     }
 }
 
+bool gazeStabilizerThread::handleFFPort()
+{
+    if (FFstate == FF_STATE_IDLE)
+    {
+        // Reset the feedforward signal
+        dq_NE_FF.resize(6,0.0);
+        Ts_tx.clear();
+        FF_Ts = 0.0;
+
+        // if there is something on the port, change state to init
+        if (inWBBottle = inWBPort.read(false))
+        {
+            FFstate = FF_STATE_INIT;
+            timeNow = yarp::os::Time::now();
+        }
+    }
+    else if (FFstate == FF_STATE_INIT)
+    {
+        dq_NE_FF.resize(6,0.0);
+
+        if (inWBBottle = inWBPort.read(false))
+        {
+            double tNow = yarp::os::Time::now();
+            Ts_tx.push_back(tNow-timeNow);
+            timeNow=tNow;
+
+            if (Ts_tx.size()>20)
+            {
+                // Get the average tx period of the FF port
+                for (int i = 0; i < Ts_tx.size(); i++)
+                {
+                    FF_Ts += Ts_tx[i];
+                    printMessage(4,"Ts_tx[i] %g\n", Ts_tx[i]);
+                }
+                FF_Ts /= Ts_tx.size();
+                yInfo(" [FFPort][INIT] Initialization finished. Ready to use it. Ts_tx: %g",FF_Ts);
+
+                FFstate = FF_STATE_RX;
+            }
+        }
+    }
+    else if (FFstate == FF_STATE_RX)
+    {
+        if (inWBBottle = inWBPort.read(false))
+        {
+            FF_init_cnt = 0;
+            Vector dx_FP_FF(6,0.0);
+            compute_dxFP_wholeBodyMode(dx_FP_FF);
+            yDebug(" dx_FP_FF: %s FF_Ts: %g",dx_FP_FF.toString(3,3).c_str(),FF_Ts);
+            dq_NE_FF.setSubvector(0,computeNeckVels(dx_FP_FF/10.0));
+            dq_NE_FF.setSubvector(3,computeEyesVels(dx_FP_FF/10.0));
+        }
+        else if (FF_init_cnt > FF_NOTX_THRES * FF_Ts)
+        {
+            yInfo(" [FFPort][INIT] FF_NOTX_THRES triggered. Going back to idle state.");
+            FFstate = FF_STATE_IDLE;
+        }
+        else
+        {
+            FF_init_cnt++;
+        }
+    }
+
+    return true;
+}
+
 Vector gazeStabilizerThread::computeNeckVels(const Vector &_dx_FP)
 {
     // 0  - Take only the rotational part of the velocity of the
@@ -256,7 +340,7 @@ Vector gazeStabilizerThread::computeNeckVels(const Vector &_dx_FP)
     
     // 1  - Convert x_FP from root to RF_E
     Vector xFP_E = root2Eyes(xFP_R);
-    printMessage(2,"xFP_E:\t%s\n", xFP_E.toString(3,3).c_str());
+    yTrace("xFP_E:\t%s", xFP_E.toString(3,3).c_str());
 
     // 2  - Compute J_H, that is the jacobian of the head joints alone
     // 2A - attach the fixation point to the neck chain
@@ -312,45 +396,36 @@ bool gazeStabilizerThread::compute_dxFP_wholeBodyMode(Vector &_dx_FP)
     * 7  - Send dq_H
     * 8  - Compute the dq_E as if we were in torso mode..
     */
+    // 4  - Read data from the wholeBody port 
+    Vector v(3,0.0);
+    Vector w(3,0.0);
 
-    if (inWBBottle = inWBPort.read(false))
-    {
-        // 4  - Read data from the wholeBody port 
-        //      (if there is no data, nothing is commanded)
-        // Translational part
-        Vector v(3,0.0);
-        double vX = inWBBottle -> get(0).asDouble(); v[0] = vX;
-        double vY = inWBBottle -> get(1).asDouble(); v[1] = vY;
-        double vZ = inWBBottle -> get(2).asDouble(); v[2] = vZ;
+    // Translational part
+    v[0] = inWBBottle -> get(0).asDouble();
+    v[1] = inWBBottle -> get(1).asDouble();
+    v[2] = inWBBottle -> get(2).asDouble();
 
-        // Rotational part
-        Vector w(3,0.0);
-        double wX = inWBBottle -> get(3).asDouble(); w[0] = wX;
-        double wY = inWBBottle -> get(4).asDouble(); w[1] = wX;
-        double wZ = inWBBottle -> get(5).asDouble(); w[2] = wX;
+    // Rotational part
+    w[0] = inWBBottle -> get(3).asDouble();
+    w[1] = inWBBottle -> get(4).asDouble();
+    w[2] = inWBBottle -> get(5).asDouble();
 
-        // 5  - Compute the lever arm between the fixation point and the Neck Base
-        Matrix H = neck -> getH(2);     // get the H from ROOT to Neck Base
-        H(0,3) = xFP_R[0]-H(0,3);
-        H(1,3) = xFP_R[1]-H(1,3);
-        H(2,3) = xFP_R[2]-H(2,3);
+    // 5  - Compute the lever arm between the fixation point and the Neck Base
+    Matrix H = neck -> getH(2);     // get the H from ROOT to Neck Base
+    H(0,3) = xFP_R[0]-H(0,3);
+    H(1,3) = xFP_R[1]-H(1,3);
+    H(2,3) = xFP_R[2]-H(2,3);
 
-        // 6 - Do the magic v_FP = v+w^r
-        Vector dx_FP = v+wX*cross(H,0,H,3)+wY*cross(H,1,H,3)+wZ*cross(H,2,H,3);
+    // 6 - Do the magic dx_FP = v+w^r
+    Vector dx_FP = v+w[0]*cross(H,0,H,3)+w[1]*cross(H,1,H,3)+w[2]*cross(H,2,H,3);
 
-        _dx_FP.setSubvector(0, dx_FP);
+    _dx_FP.setSubvector(0, dx_FP);
 
-        w.push_back(1.0);
-        w = CTRL_DEG2RAD * H*w;
-        w.pop_back();
-        _dx_FP.setSubvector(3, w);
-        return true;
-    }
-    else
-    {
-        yWarning("No signal from the WB port!\n");
-        return false;
-    }
+    w.push_back(1.0);
+    w = CTRL_DEG2RAD * H*w;
+    w.pop_back();
+    _dx_FP.setSubvector(3, w);
+    return true;
 }
 
 bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP)
@@ -371,7 +446,7 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP)
         gyr[0] = inIMUBottle -> get(6).asDouble()-IMUCalibratedAvg[0];
         gyr[1] = inIMUBottle -> get(7).asDouble()-IMUCalibratedAvg[1];
         gyr[2] = inIMUBottle -> get(8).asDouble()-IMUCalibratedAvg[2];
-        yInfo("  Gyro: \t%s",gyr.toString(3,3).c_str());
+        yDebug(" Gyro: \t%s",gyr.toString(3,3).c_str());
 
         // 5  - Compute the lever arm between the fixation point and the IMU
         Matrix H = IMU -> getH();
@@ -669,7 +744,7 @@ bool gazeStabilizerThread::calibrateIMUMeasurements()
     // On the simulator we don't have to calibrate the IMU
     if (robot == "icubSim")
     {
-        yWarning("On the simulator we don't have to calibrate the IMU!");
+        yWarning("  On the simulator we don't have to calibrate the IMU!");
         return true;
     }
 
@@ -786,6 +861,7 @@ bool gazeStabilizerThread::startStabilization()
 
 bool gazeStabilizerThread::stopStabilization()
 {
+    FFstate = FF_STATE_IDLE;
     isRunning = false;
     dx_FP.resize(6,0.0);
     integrator->reset(Vector(3,0.0));
@@ -826,7 +902,7 @@ int gazeStabilizerThread::printMessage(const int l, const char *f, ...) const
 {
     if (verbosity>=l)
     {
-        fprintf(stdout,"*** %s: ",name.c_str());
+        fprintf(stdout,"[%s]",name.c_str());
 
         va_list ap;
         va_start(ap,f);
@@ -847,16 +923,15 @@ void gazeStabilizerThread::closePort(Contactable &_port)
 
 void gazeStabilizerThread::threadRelease()
 {
-    yInfo("  Moving head to home position..");
+    yDebug(" Stopping stabilization..");
         stopStabilization();
-        // goHome();
 
-    yInfo("  Closing ports...");
+    yDebug(" Closing ports...");
         closePort(inTorsoPort);
         closePort(inIMUPort);
         closePort(inWBPort);
 
-    yInfo("  Closing controllers..");
+    yDebug(" Closing controllers..");
         ddH->close();
         delete ddH;
         ddH = NULL;
