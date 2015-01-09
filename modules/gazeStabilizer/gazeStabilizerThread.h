@@ -107,7 +107,6 @@ protected:
     
     Vector dq_T;            // Velocity commands at the torso joints (if we are in torso mode)
     Vector dx_FP;           // 6D speed of the fixation point (src_mode dependent)
-    Vector dx_FP_filt;      // 6D speed filtered to reduce the resonant behavior at the head with the inertial
 
     // Input from the torsoController
     BufferedPort<Bottle>  inTorsoPort;   // port for reading from the torsoController
@@ -151,25 +150,30 @@ protected:
     /**
      * Computes the velocity of the fixation point given the gyro measurements
      * @param  _dx_FP      the velocity of the fixation point without the integral
-     * @param  _dx_FP_filt the velocity of the fixation point filtered by the integral
      * @return true/false if there has been a successfull read from the IMU (if
      *                    not, the old value is used)
      */
-    bool compute_dxFP_inertialMode(Vector &_dx_FP,Vector &_dx_FP_filt);
+    bool compute_dxFP_inertialMode(Vector &_dx_FP);
 
     /**
-    * Two different gaze stabilization techniques: either eyes, or eyes + head
+    * Three different gaze stabilization techniques: either head, eyes, or eyes + head
     **/
-    Vector stabilizeHead(const Vector &_dx_FP);
-    Vector stabilizeEyes(const Vector &_dx_FP);
-    Vector stabilizeHeadEyes(const Vector &_dx_FP, const Vector &_dx_FP_filt);
+    Vector computeNeckVels(const Vector &_dx_FP);
+    Vector computeEyesVels(const Vector &_dx_FP);
 
     /**
-    *
+     * [filterNeckVels description]
+     * @param  _dq_N [description]
+     * @return       [description]
+     */
+    Vector filterNeckVels(const Vector &_dq_N);
+
+    /**
+    * Move the neck and the eyes according to their stabilization
     **/
-    bool moveHead(const Vector &_dq_H);
+    bool moveHead(const Vector &_dq_N);
     bool moveEyes(const Vector &_dq_E);
-    bool moveHeadEyes(const Vector &_dq_HE);
+    bool moveHeadEyes(const Vector &_dq_NE);
 
     /**
      * 

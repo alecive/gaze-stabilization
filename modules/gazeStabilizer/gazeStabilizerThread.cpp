@@ -43,7 +43,6 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_ro
     J_E.zero();
     dq_T.resize(3,0.0);
     dx_FP.resize(6,0.0);
-    dx_FP_filt.resize(6,0.0);
 
     // Create the integrator
     integrator = new Integrator(_rate/1000.0,Vector(3,0.0));
@@ -198,54 +197,48 @@ void gazeStabilizerThread::run()
 
             // 3A - Compute the velocity of the fixation point. It is src_mode dependent
             // dx_FP.resize(6,0.0);
-            // dx_FP_filt.resize(6,0.0);
 
             if (src_mode == "torso")
             {
                 compute_dxFP_torsoMode(dx_FP);
-                dx_FP_filt = dx_FP;
             }
             else if (src_mode == "inertial")
             {
-                compute_dxFP_inertialMode(dx_FP,dx_FP_filt);
+                compute_dxFP_inertialMode(dx_FP);
             }
             else if (src_mode == "wholeBody")
             {
                 compute_dxFP_wholeBodyMode(dx_FP);
-                dx_FP_filt = dx_FP;
             }
             yInfo("  dx_FP:       %s", dx_FP.toString(3,3).c_str());
-            if (src_mode=="inertial")
-            {
-                yDebug(" dx_FP_filt:  %s", dx_FP_filt.toString(3,3).c_str());
-            }
 
             // 3B - Compute the stabilization command and send it to the robot.
             //      It is ctrl_mode dependent
             if (ctrl_mode == "head")
             {
-                Vector dq_N=stabilizeHead(dx_FP_filt);
-                yInfo("  dq_H:\t%s", dq_N.toString(3,3).c_str());
-                moveHead(dq_N);
+                Vector dq_N = computeNeckVels(dx_FP);
+                dq_N        = filterNeckVels(dq_N);
+                yInfo("  dq_N:\t%s", dq_N.toString(3,3).c_str());
+                moveHead(-1.0*dq_N);
             }
             else if (ctrl_mode == "eyes")
             {
-                Vector dq_E=stabilizeEyes(dx_FP);
+                Vector dq_E = computeEyesVels(dx_FP);
                 yInfo("  dq_E:\t%s", dq_E.toString(3,3).c_str());
-                moveEyes(dq_E);
+                moveEyes(-1.0*dq_E);
             }
             else if (ctrl_mode == "headEyes")
             {
-                Vector dq_NE=stabilizeHeadEyes(dx_FP,dx_FP_filt);
+                Vector dq_N = computeNeckVels(dx_FP);
+                dq_N        = filterNeckVels(dq_N);
+                Vector dq_E = computeEyesVels(dx_FP);
+                
+                Vector dq_NE(6,0.0);
+                dq_NE.setSubvector(0,dq_N);
+                dq_NE.setSubvector(3,dq_E);
                 yInfo("  dq_NE:\t%s", dq_NE.toString(3,3).c_str());
-                for (int i = 0; i < 6; i++)
-                {
-                    if (dq_NE[i]>60.0)
-                    {
-                        yError("One or more computed neck velocities are higher than 60.0!\n");
-                    }
-                }
-                moveHeadEyes(dq_NE);
+                
+                moveHeadEyes(-1.0*dq_NE);
             }
         }
         else
@@ -255,7 +248,7 @@ void gazeStabilizerThread::run()
     }
 }
 
-Vector gazeStabilizerThread::stabilizeHead(const Vector &_dx_FP)
+Vector gazeStabilizerThread::computeNeckVels(const Vector &_dx_FP)
 {
     // 0  - Take only the rotational part of the velocity of the
     //      fixation point, because we will only compensate that with the head
@@ -286,10 +279,10 @@ Vector gazeStabilizerThread::stabilizeHead(const Vector &_dx_FP)
     // 3 - Return J_N# * dx_FP
     Matrix J_N_pinv = pinv(J_Np);
     printMessage(3,"J_N_pinv:\n%s\n",J_N_pinv.toString(3,3).c_str());
-    return -CTRL_RAD2DEG * (J_N_pinv * dx_FP);
+    return CTRL_RAD2DEG * (J_N_pinv * dx_FP);
 }
 
-Vector gazeStabilizerThread::stabilizeEyes(const Vector &_dx_FP)
+Vector gazeStabilizerThread::computeEyesVels(const Vector &_dx_FP)
 {
     // 0  - Take only the translational part of the velocity of the
     //      fixation point, because we will only compensate that with the eyes
@@ -297,41 +290,14 @@ Vector gazeStabilizerThread::stabilizeEyes(const Vector &_dx_FP)
 
     // 1 - Compute dq_E  = J_E# * dx_FP;
     Matrix J_E_pinv = pinv(J_E);
-    Vector dq_E = -CTRL_RAD2DEG * (J_E_pinv * dx_FP);
+    Vector dq_E = CTRL_RAD2DEG * (J_E_pinv * dx_FP);
 
     return dq_E;
 }
 
-Vector gazeStabilizerThread::stabilizeHeadEyes(const Vector &_dx_FP, const Vector &_dx_FP_filt)
+Vector gazeStabilizerThread::filterNeckVels(const Vector &_dq_N)
 {
-    Vector dq_NE(6,0.0);
-    Vector dq_N(3,0.0);
-    Vector dq_E(3,0.0);
-    dq_N = stabilizeHead(_dx_FP_filt);
-    dq_NE.setSubvector(0,dq_N);
-
-    if(src_mode == "torso")// || src_mode == "inertial")
-    {
-        // In torso mode, the neck movements will affect the compensation for the eyes,
-        // so we should account for that.
-        Vector dq_TN(6,0.0);
-        dq_TN.setSubvector(0,dq_T);
-        dq_TN.setSubvector(3,dq_N);
-        Vector d2R_dq_TN = CTRL_DEG2RAD * dq_TN;
-        printMessage(1,"dq_TN:\t%s\n", dq_TN.toString(3,3).c_str());
-
-        Vector dx_FP_2   = compute_dxFP_kinematics(d2R_dq_TN);
-        yInfo("  dx_FP_ego:\t%s", dx_FP_2.toString(3,3).c_str());
-        dq_E=stabilizeEyes(dx_FP_2);
-    }
-    else
-    {
-        dq_E=stabilizeEyes(_dx_FP);
-    }
-
-    dq_NE.setSubvector(3,dq_E);
-
-    return dq_NE;
+    return integrator_gain*integrator->integrate(_dq_N);
 }
 
 bool gazeStabilizerThread::compute_dxFP_wholeBodyMode(Vector &_dx_FP)
@@ -387,7 +353,7 @@ bool gazeStabilizerThread::compute_dxFP_wholeBodyMode(Vector &_dx_FP)
     }
 }
 
-bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx_FP_filt)
+bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP)
 {
     /*
     * Conceptual recap:
@@ -428,17 +394,11 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
         gyr.pop_back();
 
         _dx_FP.setSubvector(3, gyr);
-
-        // 7 - Compute dx_FP
-        _dx_FP_filt = _dx_FP;
-        _dx_FP_filt.setSubvector(3,integrator_gain*integrator->integrate(_dx_FP.subVector(3,5)));
     }
     else
     {
         // 4 - (if there is no data from the IMU, keep the old value)
         yWarning("No signal from the IMU!\n");
-        
-        _dx_FP_filt.setSubvector(3,integrator_gain*integrator->integrate(_dx_FP.subVector(3,5)));
         return false;
     }
 
@@ -502,7 +462,7 @@ Vector gazeStabilizerThread::compute_dxFP_kinematics(Vector &_dq)
     return J_TN * _dq;
 }
 
-bool gazeStabilizerThread::moveHead(const Vector &_dq_H)
+bool gazeStabilizerThread::moveHead(const Vector &_dq_N)
 {
     VectorOf<int> jointsToSet;
     if (!areJointsHealthyAndSet(jointsToSet,"velocity"))
@@ -516,7 +476,7 @@ bool gazeStabilizerThread::moveHead(const Vector &_dq_H)
     }
 
     // Move the head
-    printMessage(3,"Moving neck to: %s\n",_dq_H.toString(3,3).c_str());
+    printMessage(3,"Moving neck to: %s\n",_dq_N.toString(3,3).c_str());
     std::vector<int> Ejoints;  // indexes of the joints to control
     Ejoints.push_back(0);
     Ejoints.push_back(1);
@@ -526,13 +486,13 @@ bool gazeStabilizerThread::moveHead(const Vector &_dq_H)
     if (if_mode == "vel2")
     {
         int nJnts = 3;
-        ivelH2 -> velocityMove(nJnts,Ejoints.data(),_dq_H.data());
+        ivelH2 -> velocityMove(nJnts,Ejoints.data(),_dq_N.data());
     }
     else if (if_mode == "vel1")
     {
-        ivelH1 -> velocityMove(Ejoints[0],_dq_H(0));
-        ivelH1 -> velocityMove(Ejoints[1],_dq_H(1));
-        ivelH1 -> velocityMove(Ejoints[2],_dq_H(2));
+        ivelH1 -> velocityMove(Ejoints[0],_dq_N(0));
+        ivelH1 -> velocityMove(Ejoints[1],_dq_N(1));
+        ivelH1 -> velocityMove(Ejoints[2],_dq_N(2));
     }
     else
     {
@@ -582,11 +542,11 @@ bool gazeStabilizerThread::moveEyes(const Vector &_dq_E)
     return true;
 }
 
-bool gazeStabilizerThread::moveHeadEyes(const Vector &_dq_HE)
+bool gazeStabilizerThread::moveHeadEyes(const Vector &_dq_NE)
 {
     bool ret=1;
-    ret = ret && moveHead(_dq_HE.subVector(0,2));
-    ret = ret && moveEyes(_dq_HE.subVector(3,5));
+    ret = ret && moveHead(_dq_NE.subVector(0,2));
+    ret = ret && moveEyes(_dq_NE.subVector(3,5));
 
     return ret;
 }
@@ -828,7 +788,6 @@ bool gazeStabilizerThread::stopStabilization()
 {
     isRunning = false;
     dx_FP.resize(6,0.0);
-    dx_FP_filt.resize(6,0.0);
     integrator->reset(Vector(3,0.0));
     return true;
 }
