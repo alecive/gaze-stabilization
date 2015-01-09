@@ -27,6 +27,8 @@
 #include <yarp/dev/Drivers.h>
 #include <yarp/dev/all.h>
 
+#include <iCub/iKin/iKinFwd.h>
+
 #include <iostream>
 #include <string>
 #include <stdarg.h>
@@ -36,6 +38,8 @@
 using namespace yarp::os;
 using namespace yarp::sig;
 using namespace yarp::dev;
+using namespace yarp::math;
+using namespace iCub::iKin;
 
 using namespace std;
 
@@ -79,8 +83,16 @@ protected:
     IVelocityControl2  *ivelT;
     IEncoders          *iencsT;
     IControlMode2      *imodT;
+    IControlLimits     *ilimT;
     Vector             *encsT;
     int jntsT;
+
+    // Classical interfaces - HEAD
+    PolyDriver          ddH;    // head device driver
+    IEncoders          *iencsH;
+    IControlLimits     *ilimH;
+    Vector             *encsH;
+    int jntsH;
 
     double timeNow;
     std::vector <yarp::sig::Vector> ctrlCommands;
@@ -90,10 +102,20 @@ protected:
     int    numWaypoints;
     int            step;    // Flag to know in which step the thread is
 
-    BufferedPort<Bottle> *outPort;
-    RpcClient             GSrpcPort;
+    Port      outPortQTorso;
+    Port      outPortVNeck;
+    RpcClient gazeStabRPC;
+
+    // Kinematics
+    iCubHeadCenter *neck;
+    iKinChain      *chainNeck;
 
     bool processWayPoint();
+
+    /**
+    * Updates a kinematic chain belonging to the neck.
+    **/
+    void updateNeckChain(iKinChain &_neck);
 
     /**
      * Deals the rpc interaction with the gazeStabilization. It manages start/stop/home states.
@@ -105,7 +127,13 @@ protected:
      * Sends the vels of the waypoint under current evaluation to the port AS-THEY-ARE.
      * No check will be done. The format is a simple bottle of double (v0, v1, v2), in [deg]
      */
-    void sendCommand();
+    void sendTorsoVels();
+
+    /**
+     * Sends the velocity of the neck in the root reference frame due to the torso movements.
+     * It requires the forward kinematics.
+     */
+    void sendNeckVel();
 
     /**
      * Changes the control modes of the torso to either position or velocity

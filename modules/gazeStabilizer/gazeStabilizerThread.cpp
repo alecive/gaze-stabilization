@@ -68,7 +68,8 @@ bool gazeStabilizerThread::threadInit()
     inIMUPort  .open(("/"+name+"/inertial:i").c_str());
     inWBPort   .open(("/"+name+"/wholeBody:i").c_str());
 
-    Network::connect("/torsoController/gazeStabilizer:o",("/"+name+"/torsoController:i").c_str());
+    Network::connect("/torsoController/torsoVels:o",("/"+name+"/torsoController:i").c_str());
+    Network::connect("/torsoController/neckVel:o",("/"+name+"/wholeBody:i").c_str());
     Network::connect("/torsoController/rpc:o",("/"+name+"/rpc:i").c_str());
 
     if (!Network::connect("/imuFilter/inertial:o",("/"+name+"/inertial:i").c_str()))
@@ -245,6 +246,7 @@ void gazeStabilizerThread::run()
                 Vector dq_NE(6,0.0);
                 dq_NE.setSubvector(0,dq_N);
                 dq_NE.setSubvector(3,dq_E);
+                dq_NE.resize(6,0.0);
                 yInfo("  dq_NE:\t%s", dq_NE.toString(3,3).c_str());
 
                 if (src_mode=="wholeBody")
@@ -315,8 +317,8 @@ bool gazeStabilizerThread::handleFFPort()
             Vector dx_FP_FF(6,0.0);
             compute_dxFP_wholeBodyMode(dx_FP_FF);
             yDebug(" dx_FP_FF: %s FF_Ts: %g",dx_FP_FF.toString(3,3).c_str(),FF_Ts);
-            dq_NE_FF.setSubvector(0,computeNeckVels(dx_FP_FF/10.0));
-            dq_NE_FF.setSubvector(3,computeEyesVels(dx_FP_FF/10.0));
+            dq_NE_FF.setSubvector(0,computeNeckVels(dx_FP_FF));
+            dq_NE_FF.setSubvector(3,computeEyesVels(dx_FP_FF));
         }
         else if (FF_init_cnt > FF_NOTX_THRES * FF_Ts)
         {

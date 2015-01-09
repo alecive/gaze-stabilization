@@ -39,7 +39,7 @@ wayPoint & wayPoint::operator= (const wayPoint &jv)
 
 void wayPoint::print()
 {
-    printf("*** %s\n",name.c_str());
+    printf("[%s]\n",name.c_str());
     printf("jntl: %s\n",jntlims.toString(3,3).c_str());
     printf("vels: %s\n",vels.toString(3,3).c_str());
     printf("**********\n");
@@ -47,7 +47,7 @@ void wayPoint::print()
 
 void wayPoint::printCompact()
 {
-    printf("*** %s\t",name.c_str());
+    printf("[%s]    ",name.c_str());
     printf("jntl: %s\t",jntlims.toString(3,3).c_str());
     printf("vels: %s\n",vels.toString(3,3).c_str());
 }
@@ -56,19 +56,26 @@ void wayPoint::printCompact()
 torsoControllerThread::torsoControllerThread(int _rate, string _name, string _robot, int _v, int _nW, const ResourceFinder &_rf) :
                                            RateThread(_rate), name(_name), robot(_robot), verbosity(_v), numWaypoints(_nW)
 {
+    neck = new iCubHeadCenter("right_v2");
+    neck -> setAllConstraints(false);
+    // Release torso links
+    for (int i = 0; i < 3; i++)
+    {
+        neck -> releaseLink(i);
+    }
+    chainNeck = neck -> asChain();
+
     timeNow = yarp::os::Time::now();
     ResourceFinder &rf = const_cast<ResourceFinder&>(_rf);
     step               = 0;
     currentWaypoint    = 0;
 
-    outPort     = new BufferedPort<Bottle>;
-
     //******************* ITERATIONS ******************
     iterations=rf.check("iterations",Value(1)).asInt();
-    printf(("*** "+name+": number of iterations set to %g\n").c_str(),iterations);
+    printMessage(0,"Number of iterations set to %i\n",iterations);
 
     //******************* WAYPOINTS ******************
-    wayPoints.push_back(wayPoint("START      "));        // The first group is the home position
+    wayPoints.push_back(wayPoint("START     "));        // The first group is the home position
 
     for (int j = 0; j < iterations; j++)
     {
@@ -95,8 +102,8 @@ torsoControllerThread::torsoControllerThread(int _rate, string _name, string _ro
         }
     }
 
-    wayPoints.push_back(wayPoint("END        "));   // The last group will be the home position as well
-    numWaypoints = wayPoints.size();                // The number of waypoints is simply the size of the vector
+    wayPoints.push_back(wayPoint("END       "));   // The last group will be the home position as well
+    numWaypoints = wayPoints.size();               // The number of waypoints is simply the size of the vector
 
     for (int i = 0; i < numWaypoints; i++)
     {
@@ -106,9 +113,12 @@ torsoControllerThread::torsoControllerThread(int _rate, string _name, string _ro
 
 bool torsoControllerThread::threadInit()
 {
-    outPort->open(("/"+name+"/gazeStabilizer:o").c_str());
-    GSrpcPort.open(("/"+name+"/rpc:o").c_str());
-    Network::connect(("/"+name+"/gazeStabilizer:o").c_str(),"/gazeStabilizer/torsoController:i");
+    outPortQTorso.open(("/"+name+"/torsoVels:o").c_str());
+    outPortVNeck.open(("/"+name+"/neckVel:o").c_str());
+    gazeStabRPC.open(("/"+name+"/rpc:o").c_str());
+
+    // Network::connect(("/"+name+"/torsoVels:o").c_str(),"/gazeStabilizer/torsoController:i");
+    Network::connect(("/"+name+"/neckVel:o").c_str(),"/gazeStabilizer/wholeBody:i");
     Network::connect(("/"+name+"/rpc:o").c_str(),"/gazeStabilizer/rpc:i");
 
     bool ok = 1;
@@ -131,16 +141,53 @@ bool torsoControllerThread::threadInit()
         ok = ok && ddT.view(ivelT);
         ok = ok && ddT.view(iencsT);
         ok = ok && ddT.view(imodT);
+        ok = ok && ddT.view(ilimT);
     }
 
     if (!ok)
     {
-        printMessage(0,"\nERROR: Problems acquiring torso interfaces!!!!\n");
+        yError("Problems acquiring torso interfaces!!!!");
         return false;
     }
 
     iencsT -> getAxes(&jntsT);
     encsT = new Vector(jntsT,0.0);
+
+    Property OptH;
+    OptH.put("robot",  robot.c_str());
+    OptH.put("part",   "head");
+    OptH.put("device", "remote_controlboard");
+    OptH.put("remote",("/"+robot+"/head").c_str());
+    OptH.put("local", ("/"+name +"/head").c_str());
+
+    if (!ddH.open(OptH))
+    {
+        yError("could not open head PolyDriver!\n");
+        return false;
+    }
+
+    // open the view
+    if (ddH.isValid())
+    {
+        ok = ok && ddH.view(iencsH);
+        ok = ok && ddH.view(ilimH);
+    }
+
+    if (!ok)
+    {
+        yError(" Problems acquiring head interfaces!!!!");
+        return false;
+    }
+
+    iencsH -> getAxes(&jntsH);
+    encsH = new Vector(jntsH,0.0);
+
+    // joints bounds alignment
+    deque<IControlLimits*> lim;
+    lim.push_back(ilimT);
+    lim.push_back(ilimH);
+
+    neck -> alignJointsBounds(lim);
 
     return true;
 }
@@ -224,7 +271,8 @@ bool torsoControllerThread::processWayPoint()
         yarp::sig::Vector torso = *encsT;
 
         ivelT -> velocityMove(vls.data());
-        sendCommand();
+        sendTorsoVels();
+        sendNeckVel();
 
         for (int i = 0; i < 3; i++)
         {
@@ -248,6 +296,55 @@ bool torsoControllerThread::processWayPoint()
     }
 
     return true;
+}
+
+void torsoControllerThread::sendTorsoVels()
+{
+    Bottle b;
+    b.clear();
+
+    for (size_t i = 0; i < 3; i++)
+    {
+        b.addDouble(wayPoints[currentWaypoint].vels(i));
+    }
+    outPortQTorso.write(b);
+}
+
+void torsoControllerThread::sendNeckVel()
+{
+    updateNeckChain(*chainNeck);
+    printMessage(2,"qNeck:\t%s\n",(CTRL_RAD2DEG*(neck->getAng())).toString(3,3).c_str());
+
+    // Find the jacobian of the torso:
+    Matrix J_T = chainNeck-> GeoJacobian(2);
+    printMessage(3,"J_T:\n%s\n", J_T.toString(3,3).c_str());
+
+    Vector neckVel = J_T * wayPoints[currentWaypoint].vels;
+    printMessage(1,"vNeck:\t%s\n", neckVel.toString(3,3).c_str());    
+
+    Bottle b;
+
+    for (size_t i = 0; i < 6; i++)
+    {
+        b.addDouble(neckVel[i]);
+    }
+    outPortVNeck.write(b);
+}
+
+void torsoControllerThread::updateNeckChain(iKinChain &_neck)
+{
+    iencsT->getEncoders(encsT->data());
+    iencsH->getEncoders(encsH->data());
+
+    yarp::sig::Vector torso = *encsT;
+    yarp::sig::Vector  head = *encsH;
+
+    yarp::sig::Vector q(8,0.0);
+    q[0] = torso[2];   q[1] = torso[1];   q[2] = torso[0];
+    q[3] = head[0];    q[4] = head[1];    q[5] = head[2];
+
+    q = CTRL_DEG2RAD*q;
+    _neck.setAng(q);
 }
 
 bool torsoControllerThread::setTorsoCtrlModes(const string _s)
@@ -311,25 +408,14 @@ void torsoControllerThread::gateStabilization(const string _g)
     cmdGS.clear();
     respGS.clear();
     cmdGS.addString(_g);
-    GSrpcPort.write(cmdGS,respGS);
-}
-
-void torsoControllerThread::sendCommand()
-{
-    Bottle &b=outPort->prepare();
-    b.clear();
-    for (size_t i = 0; i < 3; i++)
-    {
-        b.addDouble(wayPoints[currentWaypoint].vels(i));
-    }
-    outPort->write();
+    gazeStabRPC.write(cmdGS,respGS);
 }
 
 int torsoControllerThread::printMessage(const int l, const char *f, ...) const
 {
     if (verbosity>=l)
     {
-        fprintf(stdout,"*** %s: ",name.c_str());
+        fprintf(stdout,"[%s] ",name.c_str());
 
         va_list ap;
         va_start(ap,f);
@@ -365,9 +451,6 @@ void torsoControllerThread::threadRelease()
 
     printMessage(0,"Closing controllers..\n");
         ddT.close();
-
-    printMessage(0,"Closing ports...\n");
-        closePort(outPort);
 }
 
 // empty line to make gcc happy
