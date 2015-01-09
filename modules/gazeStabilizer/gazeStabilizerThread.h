@@ -93,13 +93,7 @@ protected:
     iKinChain           *chainEyeR;
     iKinChain           *chainIMU;
 
-    // LowPass filter for IMU signal
-    iCub::ctrl::Filter *filt;
-    Vector num;
-    Vector den;
-    Vector y0;
-
-    // LowPass filter for IMU signal
+    // Integrator for IMU signal
     iCub::ctrl::Integrator *integrator;
     double integrator_gain;
 
@@ -114,7 +108,6 @@ protected:
     Vector dq_T;            // Velocity commands at the torso joints (if we are in torso mode)
     Vector dx_FP;           // 6D speed of the fixation point (src_mode dependent)
     Vector dx_FP_filt;      // 6D speed filtered to reduce the resonant behavior at the head with the inertial
-    Vector dx_FP_ego;       // 6D speed of the fixation point due to our own head movements
 
     // Input from the torsoController
     BufferedPort<Bottle>  inTorsoPort;   // port for reading from the torsoController
@@ -147,7 +140,7 @@ protected:
     * the velocity of the fixation point (listed below)
     **/
     bool compute_dxFP_torsoMode(Vector &_dx_FP);
-    bool compute_dxFP_inertialMode(Vector &_dx_FP,Vector &_dx_FP_filt);
+    
     bool compute_dxFP_wholeBodyMode(Vector &_dx_FP);
 
     /**
@@ -156,11 +149,13 @@ protected:
     Vector compute_dxFP_kinematics(Vector &_dq);
 
     /**
-     * computes the velocity of the fixation point given the gyro measurements
-     * @param  _gyro [description]
-     * @return       [description]
+     * Computes the velocity of the fixation point given the gyro measurements
+     * @param  _dx_FP      the velocity of the fixation point without the integral
+     * @param  _dx_FP_filt the velocity of the fixation point filtered by the integral
+     * @return true/false if there has been a successfull read from the IMU (if
+     *                    not, the old value is used)
      */
-    Vector compute_dxFP_inertial(Vector &_gyro);
+    bool compute_dxFP_inertialMode(Vector &_dx_FP,Vector &_dx_FP_filt);
 
     /**
     * Two different gaze stabilization techniques: either eyes, or eyes + head
@@ -168,8 +163,6 @@ protected:
     Vector stabilizeHead(const Vector &_dx_FP);
     Vector stabilizeEyes(const Vector &_dx_FP);
     Vector stabilizeHeadEyes(const Vector &_dx_FP, const Vector &_dx_FP_filt);
-
-    bool computeEgoMotion(const Vector &_dq_N);
 
     /**
     *

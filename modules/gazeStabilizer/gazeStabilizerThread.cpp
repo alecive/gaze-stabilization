@@ -5,9 +5,6 @@
 #include <unistd.h>
 #include <iomanip>
 
-#define GYRO_BIAS_STABILITY_IMU_CALIB   1.1     // [deg/s]
-#define GYRO_BIAS_STABILITY             4.0     // [deg/s]
-
 gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v, string &_if_mode,
                                            string &_src_mode, string &_ctrl_mode, bool _calib_IMU, double _int_gain) :
                                            RateThread(_rate), name(_name), robot(_robot), verbosity(_v), if_mode(_if_mode),
@@ -47,24 +44,6 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_ro
     dq_T.resize(3,0.0);
     dx_FP.resize(6,0.0);
     dx_FP_filt.resize(6,0.0);
-    dx_FP_ego.resize(6,0.0);
-
-    // Create the filter
-    y0.resize(3,0.0);
-
-    num.resize(4,0.0);
-    num(0) = 0.00289819463372143;
-    num(1) = 0.00869458390116429;
-    num(2) = 0.00869458390116429;
-    num(3) = 0.00289819463372143;
-
-    den.resize(4,0.0);
-    den(0) =                 1.0;
-    den(1) =   -2.37409474370935;
-    den(2) =    1.92935566909122;
-    den(3) =  -0.532075368312092;
-
-    filt = new Filter(num,den,y0);
 
     // Create the integrator
     integrator = new Integrator(_rate/1000.0,Vector(3,0.0));
@@ -245,10 +224,9 @@ void gazeStabilizerThread::run()
             //      It is ctrl_mode dependent
             if (ctrl_mode == "head")
             {
-                Vector dq_H=stabilizeHead(dx_FP);
-                yInfo("  dq_H:\t%s", dq_H.toString(3,3).c_str());
-                computeEgoMotion(dq_H);
-                moveHead(dq_H);
+                Vector dq_N=stabilizeHead(dx_FP_filt);
+                yInfo("  dq_H:\t%s", dq_N.toString(3,3).c_str());
+                moveHead(dq_N);
             }
             else if (ctrl_mode == "eyes")
             {
@@ -267,7 +245,6 @@ void gazeStabilizerThread::run()
                         yError("One or more computed neck velocities are higher than 60.0!\n");
                     }
                 }
-                // computeEgoMotion(dq_NE.subVector(0,2));
                 moveHeadEyes(dq_NE);
             }
         }
@@ -276,25 +253,6 @@ void gazeStabilizerThread::run()
             yInfo("  computeFixationPointData() returned false!\n");
         }
     }
-}
-
-bool gazeStabilizerThread::computeEgoMotion(const Vector &_dq_N)
-{
-    if (src_mode == "inertial")
-    {
-        Vector dq_TN(6,0.0);
-        dq_TN.setSubvector(0,dq_T);
-        dq_TN.setSubvector(3,_dq_N);
-        printMessage(1,"dq_TN:\t%s\n", dq_TN.toString(3,3).c_str());
-        Vector d2R_dq_TN = CTRL_DEG2RAD * dq_TN;
-
-        dx_FP_ego    = compute_dxFP_kinematics(d2R_dq_TN);
-        dx_FP_ego[0] = 0;   dx_FP_ego[1] = 0;   dx_FP_ego[2] = 0;
-        yInfo("  dx_FP_ego:\t%s\t", dx_FP_ego.toString(3,3).c_str());
-        return true;
-    }
-    else
-        return false;
 }
 
 Vector gazeStabilizerThread::stabilizeHead(const Vector &_dx_FP)
@@ -354,6 +312,8 @@ Vector gazeStabilizerThread::stabilizeHeadEyes(const Vector &_dx_FP, const Vecto
 
     if(src_mode == "torso")// || src_mode == "inertial")
     {
+        // In torso mode, the neck movements will affect the compensation for the eyes,
+        // so we should account for that.
         Vector dq_TN(6,0.0);
         dq_TN.setSubvector(0,dq_T);
         dq_TN.setSubvector(3,dq_N);
@@ -432,7 +392,7 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
     /*
     * Conceptual recap:
     * 4  - Read data from the inertial sensor
-    *      (if there is no data, nothing is commanded)
+    *      (if there is no data from the IMU, keep the old value)
     * 5  - Compute the lever arm between the fixation point and the IMU
     * 6A - PUT THE MAGIC HERE ...
     * 6B - ... AND HERE!
@@ -441,104 +401,48 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP, Vector &_dx
     if (inIMUBottle = inIMUPort.read(false))
     {
         // 4  - Read data from the inertial sensor
-        //     (if there is no data, nothing is commanded)
-        Vector w(3,0.0);
-        Vector w_filt(3,0.0);
-        double gyrX = inIMUBottle -> get(6).asDouble(); w[0] = gyrX-IMUCalibratedAvg[0];
-        double gyrY = inIMUBottle -> get(7).asDouble(); w[1] = gyrY-IMUCalibratedAvg[1];
-        double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ-IMUCalibratedAvg[2];
+        Vector gyr(3,0.0);
+        gyr[0] = inIMUBottle -> get(6).asDouble()-IMUCalibratedAvg[0];
+        gyr[1] = inIMUBottle -> get(7).asDouble()-IMUCalibratedAvg[1];
+        gyr[2] = inIMUBottle -> get(8).asDouble()-IMUCalibratedAvg[2];
+        yInfo("  Gyro: \t%s",gyr.toString(3,3).c_str());
 
-        // w_filt = filt->filt(w);
-        // w_filt = w;
+        // 5  - Compute the lever arm between the fixation point and the IMU
+        Matrix H = IMU -> getH();
+        H(0,3)   = xFP_R[0]-H(0,3);
+        H(1,3)   = xFP_R[1]-H(1,3);
+        H(2,3)   = xFP_R[2]-H(2,3);
 
-        double gyrobiasstability=calib_IMU?GYRO_BIAS_STABILITY_IMU_CALIB:GYRO_BIAS_STABILITY;
-        if (robot=="icubSim")
-        {
-            gyrobiasstability/=3;
-        }
+        // 6A - Compute the positional component of the speed of the fixation point
+        //      thanks to the rotational component measure obtained from the IMU
+        Vector dx_FP_pos(3,0.0);
+        dx_FP_pos=CTRL_DEG2RAD*(gyr[0]*cross(H,0,H,3)+gyr[1]*cross(H,1,H,3)+gyr[2]*cross(H,2,H,3));
+        _dx_FP.setSubvector(0, dx_FP_pos);
 
-        if ((fabs(w[0])<gyrobiasstability) && (fabs(w[1])<gyrobiasstability) &&
-        (fabs(w[2])<gyrobiasstability))
-        {
-            // integrator->reset(Vector(3,0.0));
-        }
-        else
-        {
-            // w_filt = integrator_gain * integrator->integrate(w);
-        }
-        
-        _dx_FP      = compute_dxFP_inertial(w);
-        // _dx_FP_filt = compute_dxFP_inertial(w_filt);
-        _dx_FP_filt = _dx_FP;
-        _dx_FP_filt.setSubvector(3,integrator_gain*integrator->integrate(_dx_FP.subVector(3,5)));
+        // 6B - Project IMU measure on the the rotational component
+        //      of the speed of the fixation point
+        H(0,3) = 0;        H(1,3) = 0;        H(2,3) = 0;
 
-        
-        dx_FP_ego.resize(6,0.0);
-    }
-    else
-    {
-        yWarning("No signal from the IMU!\n");
-        
-        _dx_FP      = _dx_FP;
-        _dx_FP_filt = _dx_FP_filt;
-        _dx_FP_filt.setSubvector(3,integrator_gain*integrator->integrate(_dx_FP.subVector(3,5)));
+        gyr.push_back(1.0);
+        gyr = CTRL_DEG2RAD * H * gyr;
+        gyr.pop_back();
 
-        // _dx_FP_filt = _dx_FP;
-
-        dx_FP_ego.resize(6,0.0);
-    }
-    return true;
-}
-
-Vector gazeStabilizerThread::compute_dxFP_inertial(Vector &_gyro)
-{
-    yInfo("  Gyro: \t%s",_gyro.toString(3,3).c_str());
-
-    double gyrX = _gyro(0);
-    double gyrY = _gyro(1);
-    double gyrZ = _gyro(2);
-    Vector _dx_FP(6,0.0);
-
-    // 5  - Compute the lever arm between the fixation point and the IMU
-    Matrix H = IMU -> getH();
-    H(0,3)   = xFP_R[0]-H(0,3);
-    H(1,3)   = xFP_R[1]-H(1,3);
-    H(2,3)   = xFP_R[2]-H(2,3);
-
-    // 6A - Filter out the noise on the gyro readouts
-    Vector dx_FP(3,0.0);
-    double gyrobiasstability=calib_IMU?GYRO_BIAS_STABILITY_IMU_CALIB:GYRO_BIAS_STABILITY;
-    if (robot=="icubSim")
-    {
-        gyrobiasstability/=3;
-    }
-    
-    if ((fabs(gyrX)<gyrobiasstability) && (fabs(gyrY)<gyrobiasstability) &&
-        (fabs(gyrZ)<gyrobiasstability))
-    {
-        // dx_FP_ego.resize(6,0.0);
-        // dx_FP.resize(J_E.rows(),0.0);
-    }
-    // 6B - Do the magic 
-    else
-    {
-        dx_FP=CTRL_DEG2RAD*(gyrX*cross(H,0,H,3)+gyrY*cross(H,1,H,3)+gyrZ*cross(H,2,H,3));
-
-        _dx_FP.setSubvector(0, dx_FP);
-
-        H(0,3) = 0;
-        H(1,3) = 0;
-        H(2,3) = 0;
-
-        // yInfo("  w: \t%s\tH:\n%s\n",w.toString(3,3).c_str(),H.toString(3,3).c_str());
-        _gyro.push_back(1.0);
-        _gyro = CTRL_DEG2RAD * H * _gyro;
-        _gyro.pop_back();
+        _dx_FP.setSubvector(3, gyr);
 
         // 7 - Compute dx_FP
-        _dx_FP.setSubvector(3, _gyro);
+        _dx_FP_filt = _dx_FP;
+        _dx_FP_filt.setSubvector(3,integrator_gain*integrator->integrate(_dx_FP.subVector(3,5)));
     }
-    return _dx_FP;
+    else
+    {
+        // 4 - (if there is no data from the IMU, keep the old value)
+        yWarning("No signal from the IMU!\n");
+        
+        _dx_FP_filt.setSubvector(3,integrator_gain*integrator->integrate(_dx_FP.subVector(3,5)));
+        return false;
+    }
+
+    return true;
 }
 
 bool gazeStabilizerThread::compute_dxFP_torsoMode(Vector &_dx_FP)
@@ -812,12 +716,12 @@ bool gazeStabilizerThread::calibrateIMUMeasurements()
     if (inIMUBottle = inIMUPort.read(false))
     {
         Vector w(3,0.0);
-        double gyrX = inIMUBottle -> get(6).asDouble(); w[0] = gyrX;
-        double gyrY = inIMUBottle -> get(7).asDouble(); w[1] = gyrY;
-        double gyrZ = inIMUBottle -> get(8).asDouble(); w[2] = gyrZ;
+        w[0] = inIMUBottle -> get(6).asDouble();
+        w[1] = inIMUBottle -> get(7).asDouble();
+        w[2] = inIMUBottle -> get(8).asDouble();
         IMUCalib.push_back(w);
 
-        if (IMUCalib.size() == 300)
+        if (IMUCalib.size() == 200)
         {
             Vector v(3,0.0);
             for (int i = 0; i < 3; i++)
@@ -925,7 +829,6 @@ bool gazeStabilizerThread::stopStabilization()
     isRunning = false;
     dx_FP.resize(6,0.0);
     dx_FP_filt.resize(6,0.0);
-    dx_FP_ego.resize(6,0.0);
     integrator->reset(Vector(3,0.0));
     return true;
 }
@@ -1039,7 +942,6 @@ void gazeStabilizerThread::threadRelease()
             IMU = NULL;
         }
 
-        delete filt; filt = NULL;
         delete integrator; integrator = NULL;
 }
 
