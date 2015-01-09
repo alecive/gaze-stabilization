@@ -216,20 +216,20 @@ void gazeStabilizerThread::run()
             //      It is ctrl_mode dependent
             if (ctrl_mode == "head")
             {
-                Vector dq_N = computeNeckVels(dx_FP);
+                Vector dq_N = -1.0*computeNeckVels(dx_FP);
                 dq_N        = filterNeckVels(dq_N);
                 yInfo("  dq_N:\t%s", dq_N.toString(3,3).c_str());
-                moveHead(-1.0*dq_N);
+                moveHead(dq_N);
             }
             else if (ctrl_mode == "eyes")
             {
-                Vector dq_E = computeEyesVels(dx_FP);
+                Vector dq_E = -1.0*computeEyesVels(dx_FP);
                 yInfo("  dq_E:\t%s", dq_E.toString(3,3).c_str());
-                moveEyes(-1.0*dq_E);
+                moveEyes(dq_E);
             }
             else if (ctrl_mode == "headEyes")
             {
-                Vector dq_N = computeNeckVels(dx_FP);
+                Vector dq_N = -1.0*computeNeckVels(dx_FP);
                 dq_N        = filterNeckVels(dq_N);
                 Vector dq_E = computeEyesVels(dx_FP);
                 
@@ -238,12 +238,12 @@ void gazeStabilizerThread::run()
                 dq_NE.setSubvector(3,dq_E);
                 yInfo("  dq_NE:\t%s", dq_NE.toString(3,3).c_str());
                 
-                moveHeadEyes(-1.0*dq_NE);
+                moveHeadEyes(dq_NE);
             }
         }
         else
         {
-            yInfo("  computeFixationPointData() returned false!\n");
+            yWarning("  computeFixationPointData() returned false!\n");
         }
     }
 }
