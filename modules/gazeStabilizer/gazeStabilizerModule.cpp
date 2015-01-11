@@ -394,6 +394,7 @@ class gazeStabilizer: public RFModule
             //************************ RPC ***********************
                 rpcSrvr.open(("/"+name+"/rpc:i").c_str());
                 attach(rpcSrvr);
+                Network::connect("/torsoController/rpc:o",("/"+name+"/rpc:i").c_str());
 
             return true;
         }

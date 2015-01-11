@@ -319,11 +319,14 @@ void torsoControllerThread::sendNeckVel()
     Matrix J_T = chainNeck-> GeoJacobian(2);
     printMessage(3,"J_T:\n%s\n", J_T.toString(3,3).c_str());
 
-    Vector neckVel = J_T * wayPoints[currentWaypoint].vels;
+    Vector neckVel(3,0.0);
+    neckVel[0] = wayPoints[currentWaypoint].vels[2];
+    neckVel[1] = wayPoints[currentWaypoint].vels[1];
+    neckVel[2] = wayPoints[currentWaypoint].vels[0];
+    neckVel = J_T * neckVel;
     printMessage(1,"vNeck:\t%s\n", neckVel.toString(3,3).c_str());    
 
     Bottle b;
-
     for (size_t i = 0; i < 6; i++)
     {
         b.addDouble(neckVel[i]);
@@ -341,7 +344,7 @@ void torsoControllerThread::updateNeckChain(iKinChain &_neck)
 
     yarp::sig::Vector q(8,0.0);
     q[0] = torso[2];   q[1] = torso[1];   q[2] = torso[0];
-    q[3] = head[0];    q[4] = head[1];    q[5] = head[2];
+    q[3] =  head[0];    q[4] = head[1];    q[5] = head[2];
 
     q = CTRL_DEG2RAD*q;
     _neck.setAng(q);
