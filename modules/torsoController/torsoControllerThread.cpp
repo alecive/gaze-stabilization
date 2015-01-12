@@ -1,6 +1,6 @@
 #include "torsoControllerThread.h"
 
-#define CTRL_PERIOD 0
+#define CTRL_PERIOD 1.0
 
 string int_to_string( const int a )
 {
@@ -50,6 +50,12 @@ void wayPoint::printCompact()
     printf("[%s]    ",name.c_str());
     printf("jntl: %s\t",jntlims.toString(3,3).c_str());
     printf("vels: %s\n",vels.toString(3,3).c_str());
+}
+
+yarp::os::ConstString wayPoint::toString()
+{
+    yarp::os::ConstString result = "["+name+"]  jntl: "+jntlims.toString(3,3).c_str()+"\tvels: "+vels.toString(3,3).c_str();
+    return result;
 }
 
 
@@ -198,15 +204,14 @@ void torsoControllerThread::run()
     {
         case 0:
             Time::delay(0.1); // only to avoid a printing issue in the terminal
-            printMessage(0,"Starting..\n");
-            printMessage(0,"Going to wayPoint #%i: ",currentWaypoint);
-            wayPoints[currentWaypoint].printCompact();
+            yInfo("  Starting..");
+            yInfo("  Going to wayPoint #%i: %s",currentWaypoint,wayPoints[currentWaypoint].toString().c_str());
             step++;
             break;
         case 1:
             if (!processWayPoint())
             {
-                printMessage(0,"Starting stabilization..\n");
+                yDebug(" Starting stabilization..\n");
                 gateStabilization("start");
                 currentWaypoint++;
                 step++;
@@ -214,9 +219,8 @@ void torsoControllerThread::run()
             }
             break;
         case 2:
-            printMessage(0,"Going to wayPoint #%i: ",currentWaypoint);
+            yInfo("  Going to wayPoint #%i: %s",currentWaypoint,wayPoints[currentWaypoint].toString().c_str());
             setTorsoCtrlModes("velocity");
-            wayPoints[currentWaypoint].printCompact();
             step++;
             break;
         case 3:
@@ -233,21 +237,23 @@ void torsoControllerThread::run()
             }
             break;
         case 4:
-            printMessage(0,"Finished. Stopping stabilization..\n");
+            yInfo(0,"  Finished. Stopping stabilization..\n");
             gateStabilization("stop");
             step++;
             break;              
         default:
-            printMessage(1,"Finished.\n");
+            printMessage(2,"Finished.\n");
             break;
     }
 }
 
 bool torsoControllerThread::processWayPoint()
 {
-    if (wayPoints[currentWaypoint].name == "START      ")
+    sendTorsoVels();
+    sendNeckVel();
+    if (wayPoints[currentWaypoint].name == "START     ")
     {
-        printMessage(1,"Putting torso in home position..\n");
+        yDebug(" Putting torso in home position..");
         goHome();
 
         if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
@@ -255,9 +261,9 @@ bool torsoControllerThread::processWayPoint()
             return false;
         }
     }
-    else if (wayPoints[currentWaypoint].name == "END        ")
+    else if (wayPoints[currentWaypoint].name == "END       ")
     {
-        printMessage(1,"Putting torso in home position..\n");
+        yDebug(" Putting torso in home position..");
         goHome();
         return false;
     }
@@ -271,8 +277,6 @@ bool torsoControllerThread::processWayPoint()
         yarp::sig::Vector torso = *encsT;
 
         ivelT -> velocityMove(vls.data());
-        sendTorsoVels();
-        sendNeckVel();
 
         for (int i = 0; i < 3; i++)
         {
@@ -316,15 +320,22 @@ void torsoControllerThread::sendNeckVel()
     printMessage(2,"qNeck:\t%s\n",(CTRL_RAD2DEG*(neck->getAng())).toString(3,3).c_str());
 
     // Find the jacobian of the torso:
+    Matrix H_T = chainNeck->getH(2);
+    printMessage(4,"H_T:\n%s\n", H_T.toString(3,3).c_str());
+
     Matrix J_T = chainNeck-> GeoJacobian(2);
     printMessage(3,"J_T:\n%s\n", J_T.toString(3,3).c_str());
 
-    Vector neckVel(3,0.0);
-    neckVel[0] = wayPoints[currentWaypoint].vels[2];
-    neckVel[1] = wayPoints[currentWaypoint].vels[1];
-    neckVel[2] = wayPoints[currentWaypoint].vels[0];
-    neckVel = J_T * neckVel;
-    printMessage(1,"vNeck:\t%s\n", neckVel.toString(3,3).c_str());    
+    Vector neckVel(6,0.0);
+    Vector dq_T(3,0.0);
+    dq_T[0] = wayPoints[currentWaypoint].vels[2];
+    dq_T[1] = wayPoints[currentWaypoint].vels[1];
+    dq_T[2] = wayPoints[currentWaypoint].vels[0];
+
+    neckVel = J_T * CTRL_DEG2RAD * dq_T;
+    // printMessage(1,"vNeck:\t%s\n", neckVel.toString(3,3).c_str());
+    printMessage(1,"vNeck:\t%s  %s\n", neckVel.subVector(0,2).toString(3,3).c_str(),
+                        (CTRL_RAD2DEG*neckVel.subVector(3,5)).toString(3,3).c_str());
 
     Bottle b;
     for (size_t i = 0; i < 6; i++)

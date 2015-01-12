@@ -65,6 +65,7 @@ struct wayPoint
     **/
     void print();
     void printCompact();
+    yarp::os::ConstString toString();
 };
 
 class torsoControllerThread: public RateThread
