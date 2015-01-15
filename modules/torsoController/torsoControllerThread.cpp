@@ -338,10 +338,23 @@ void torsoControllerThread::sendNeckVel()
                         (CTRL_RAD2DEG*neckVel.subVector(3,5)).toString(3,3).c_str());
 
     Bottle b;
+    Bottle header;
+    Bottle neckvelocity;
+
+    header.addString("header");
+    header.addDouble((*this).getRate());
+
+    neckvelocity.addString("neck_velocity");
     for (size_t i = 0; i < 6; i++)
     {
-        b.addDouble(neckVel[i]);
+        neckvelocity.addDouble(neckVel[i]);
     }
+
+    b.addList()=header;
+    b.addList()=neckvelocity;
+
+    yTrace("Sending neck velocities: %s",b.toString().c_str());
+
     outPortVNeck.write(b);
 }
 
