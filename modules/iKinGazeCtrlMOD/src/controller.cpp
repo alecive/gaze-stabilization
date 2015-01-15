@@ -242,17 +242,17 @@ void Controller::motionOngoingEventsFlush()
 /************************************************************************/
 void Controller::stopLimb(const bool execStopPosition)
 {
-    if (neckPosCtrlOn)
-    {
-        if (execStopPosition)
-            posHead->stop(neckJoints.size(),neckJoints.getFirst());
+    // if (neckPosCtrlOn)
+    // {
+    //     if (execStopPosition)
+    //         posHead->stop(neckJoints.size(),neckJoints.getFirst());
 
-        // note: vel==0.0 is always achievable
-        velHead->velocityMove(eyesJoints.size(),eyesJoints.getFirst(),
-                              Vector(eyesJoints.size(),0.0).data());
-    }
-    else
-        velHead->velocityMove(Vector(nJointsHead,0.0).data());        
+    //     // note: vel==0.0 is always achievable
+    //     velHead->velocityMove(eyesJoints.size(),eyesJoints.getFirst(),
+    //                           Vector(eyesJoints.size(),0.0).data());
+    // }
+    // else
+    //     velHead->velocityMove(Vector(nJointsHead,0.0).data());        
 
     commData->get_isCtrlActive()=false;
 }
@@ -308,6 +308,7 @@ bool Controller::threadInit()
 {
     port_x.open((commData->localStemName+"/x:o").c_str());
     port_q.open((commData->localStemName+"/q:o").c_str());
+    port_dq.open((commData->localStemName+"/dq:o").c_str());
     port_event.open((commData->localStemName+"/events:o").c_str());
 
     yInfo("Starting Controller at %d ms",period);
@@ -580,14 +581,21 @@ void Controller::run()
     {
         mutexCtrl.lock();
 
-        if (neckPosCtrlOn)
+        // if (neckPosCtrlOn)
+        // {
+        //     Vector posdeg=(CTRL_RAD2DEG)*IntPlan->get();
+        //     posNeck->setPositions(neckJoints.size(),neckJoints.getFirst(),posdeg.data());
+        //     velHead->velocityMove(eyesJoints.size(),eyesJoints.getFirst(),vdeg.subVector(3,5).data());
+        // }
+        // else
+        //     velHead->velocityMove(vdeg.data());
+        if (port_dq.getOutputCount()>0)
         {
-            Vector posdeg=(CTRL_RAD2DEG)*IntPlan->get();
-            posNeck->setPositions(neckJoints.size(),neckJoints.getFirst(),posdeg.data());
-            velHead->velocityMove(eyesJoints.size(),eyesJoints.getFirst(),vdeg.subVector(3,5).data());
+            txInfo_dq.update(q_stamp);
+            port_dq.prepare()=vdeg;
+            port_dq.setEnvelope(txInfo_dq);
+            port_dq.write();
         }
-        else
-            velHead->velocityMove(vdeg.data());
 
         mutexCtrl.unlock();
     }

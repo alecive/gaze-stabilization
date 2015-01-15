@@ -971,7 +971,7 @@ public:
         this->rf=&rf;
 
         // get params from the command-line
-        ctrlName=rf.check("name",Value("iKinGazeCtrl")).asString().c_str();        
+        ctrlName=rf.check("name",Value("iKinGazeCtrlMOD")).asString().c_str();        
         headName=rf.check("head",Value("head")).asString().c_str();
         torsoName=rf.check("torso",Value("torso")).asString().c_str();
         neckTime=rf.check("Tneck",Value(0.75)).asDouble();
@@ -1831,7 +1831,7 @@ int main(int argc, char *argv[])
 {
     ResourceFinder rf;
     rf.setVerbose();
-    rf.setDefaultContext("iKinGazeCtrl");
+    rf.setDefaultContext("gazeStabilization");
     rf.setDefaultConfigFile("config.ini");
     rf.configure(argc,argv);
 

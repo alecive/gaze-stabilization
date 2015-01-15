@@ -67,9 +67,11 @@ protected:
 
     BufferedPort<Vector> port_x;
     BufferedPort<Vector> port_q;
+    BufferedPort<Vector> port_dq;
     BufferedPort<Bottle> port_event;
     Stamp txInfo_x;
     Stamp txInfo_q;
+    Stamp txInfo_dq;
     Stamp txInfo_pose;
     Stamp txInfo_event;
 
