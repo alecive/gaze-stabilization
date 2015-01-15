@@ -60,6 +60,8 @@ gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_ro
     FF_init_cnt = 0;
     FF_Ts = 0;
     dq_NE_FF.resize(6,0.0);
+
+    dq_NE_REF.resize(6,0.0);
 }
 
 bool gazeStabilizerThread::threadInit()
@@ -67,10 +69,12 @@ bool gazeStabilizerThread::threadInit()
     inTorsoPort.open(("/"+name+"/torsoController:i").c_str());
     inIMUPort  .open(("/"+name+"/inertial:i").c_str());
     inFFPort   .open(("/"+name+"/wholeBody:i").c_str());
+    inREFPort  .open(("/"+name+"/dqRef:i").c_str());
 
     // Network::connect("/torsoController/torsoVels:o",("/"+name+"/torsoController:i").c_str());
     Network::connect("/torsoController/neckVel:o",("/"+name+"/wholeBody:i").c_str());
     Network::connect("/torsoController/rpc:o",("/"+name+"/rpc:i").c_str());
+    Network::connect("/iKinGazeCtrlMOD/dq:o",("/"+name+"/dqRef:i").c_str());
 
     if (!Network::connect("/imuFilter/inertial:o",("/"+name+"/inertial:i").c_str()))
     {
@@ -237,8 +241,10 @@ void gazeStabilizerThread::run()
             }
             else if (ctrl_mode == "headEyes")
             {
-                Vector dq_N = -1.0*computeNeckVels(dx_FP);
-                Vector dq_E = -1.0*computeEyesVels(dx_FP);
+                readVelsFromGazeCtrl();
+                dq_NE_REF.resize(6,0.0);
+                Vector dq_N      = +1.0*dq_NE_REF.subVector(0,2)-1.0*computeNeckVels(dx_FP);
+                Vector dq_E      = +1.0*dq_NE_REF.subVector(3,5)-1.0*computeEyesVels(dx_FP);
                 // printf("%s %s\n",dq_N.toString().c_str(),dq_E.toString().c_str() );
                 dq_N = filterNeckVels(dq_N);
                 // printf("%s %s\n",dq_N.toString().c_str(),dq_E.toString().c_str() );
@@ -266,6 +272,19 @@ void gazeStabilizerThread::run()
             yWarning("  computeFixationPointData() returned false!\n");
         }
     }
+}
+
+bool gazeStabilizerThread::readVelsFromGazeCtrl()
+{
+    if (inREFVector = inREFPort.read(false))
+    {
+        dq_NE_REF = *inREFVector;
+        yInfo("  dq_NE_REF:\t%s", dq_NE_REF.toString(3,3).c_str());
+    }
+    else
+        return false;
+
+    return true;
 }
 
 bool gazeStabilizerThread::handleFFPort()

@@ -115,6 +115,8 @@ protected:
     Bottle                 *inIMUBottle;   // bottle used for the port
     BufferedPort<Property>  inFFPort;      // port for reading neck velocities from the whole body
     Property               *inFFProperty;  // property used for the port
+    BufferedPort<Vector>    inREFPort;     // port for reading from the reference controller
+    Vector                 *inREFVector;   // vector used for the port
 
     int FFstate;
     int FF_init_cnt;
@@ -122,6 +124,8 @@ protected:
     std::vector<double> Ts_tx;
     Vector dq_NE_FF;
     double timeNow;
+
+    Vector dq_NE_REF;
 
     /**
     * Updates a kinematic chain belonging to an eye.
@@ -165,6 +169,12 @@ protected:
     **/
     Vector computeNeckVels(const Vector &_dx_FP);
     Vector computeEyesVels(const Vector &_dx_FP);
+
+    /**
+     * [readVelsFromGazeCtrl description]
+     * @return [description]
+     */
+    bool readVelsFromGazeCtrl();
 
     /**
      * [filterNeckVels description]
