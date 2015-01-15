@@ -591,6 +591,7 @@ void Controller::run()
         //     velHead->velocityMove(vdeg.data());
         if (port_dq.getOutputCount()>0)
         {
+            printf("[vdeg] %s\n", vdeg.toString().c_str());
             txInfo_dq.update(q_stamp);
             port_dq.prepare()=vdeg;
             port_dq.setEnvelope(txInfo_dq);

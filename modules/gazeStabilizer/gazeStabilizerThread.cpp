@@ -242,7 +242,7 @@ void gazeStabilizerThread::run()
             else if (ctrl_mode == "headEyes")
             {
                 readVelsFromGazeCtrl();
-                dq_NE_REF.resize(6,0.0);
+                // dq_NE_REF.resize(6,0.0);
                 Vector dq_N      = +1.0*dq_NE_REF.subVector(0,2)-1.0*computeNeckVels(dx_FP);
                 Vector dq_E      = +1.0*dq_NE_REF.subVector(3,5)-1.0*computeEyesVels(dx_FP);
                 // printf("%s %s\n",dq_N.toString().c_str(),dq_E.toString().c_str() );
@@ -279,7 +279,7 @@ bool gazeStabilizerThread::readVelsFromGazeCtrl()
     if (inREFVector = inREFPort.read(false))
     {
         dq_NE_REF = *inREFVector;
-        yInfo("  dq_NE_REF:\t%s", dq_NE_REF.toString(3,3).c_str());
+        yInfo("  dq_NE_REF:%s", dq_NE_REF.toString(3,3).c_str());
     }
     else
         return false;
