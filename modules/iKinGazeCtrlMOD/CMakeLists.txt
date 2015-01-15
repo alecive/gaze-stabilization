@@ -3,7 +3,7 @@
 # CopyPolicy: Released under the terms of the GNU GPL v2.0.
 # 
 
-SET(PROJECTNAME iKinGazeCtrl)
+SET(PROJECTNAME iKinGazeCtrlMOD)
 
 PROJECT(${PROJECTNAME})
 

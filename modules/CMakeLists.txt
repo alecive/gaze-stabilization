@@ -3,6 +3,7 @@
 # CopyPolicy: Released under the terms of the GNU GPL v2.0.
 
 find_package(OpenCV REQUIRED)
+find_package(IPOPT REQUIRED)
 
 add_subdirectory(gazeEvaluator)
 add_subdirectory(gazeStabilizer)
