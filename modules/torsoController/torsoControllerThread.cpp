@@ -304,14 +304,14 @@ bool torsoControllerThread::processWayPoint()
 
 void torsoControllerThread::sendTorsoVels()
 {
-    Bottle b;
-    b.clear();
+    Bottle &b = outPortQTorso.prepare();
 
     for (size_t i = 0; i < 3; i++)
     {
         b.addDouble(wayPoints[currentWaypoint].vels(i));
     }
-    outPortQTorso.write(b);
+
+    outPortQTorso.write();
 }
 
 void torsoControllerThread::sendNeckVel()
@@ -334,28 +334,19 @@ void torsoControllerThread::sendNeckVel()
 
     neckVel = J_T * CTRL_DEG2RAD * dq_T;
     // printMessage(1,"vNeck:\t%s\n", neckVel.toString(3,3).c_str());
-    printMessage(1,"vNeck:\t%s  %s\n", neckVel.subVector(0,2).toString(3,3).c_str(),
-                        (CTRL_RAD2DEG*neckVel.subVector(3,5)).toString(3,3).c_str());
+    yDebug(" vNeck:\t%s  %s\n", neckVel.subVector(0,2).toString(3,3).c_str(),
+                 (CTRL_RAD2DEG*neckVel.subVector(3,5)).toString(3,3).c_str());
 
-    Bottle b;
-    Bottle header;
     Bottle neckvelocity;
+    neckvelocity.addList().read(neckVel);
 
-    header.addString("header");
-    header.addDouble((*this).getRate());
+    Property& p = outPortVNeck.prepare();
+    p.put("Ts",(*this).getRate());
+    p.put("neck_velocity",neckvelocity.get(0));
 
-    neckvelocity.addString("neck_velocity");
-    for (size_t i = 0; i < 6; i++)
-    {
-        neckvelocity.addDouble(neckVel[i]);
-    }
+    yTrace(" Sending neck velocities: %s",p.toString().c_str());
 
-    b.addList()=header;
-    b.addList()=neckvelocity;
-
-    yTrace("Sending neck velocities: %s",b.toString().c_str());
-
-    outPortVNeck.write(b);
+    outPortVNeck.write();
 }
 
 void torsoControllerThread::updateNeckChain(iKinChain &_neck)

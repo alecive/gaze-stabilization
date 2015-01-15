@@ -103,8 +103,8 @@ protected:
     int    numWaypoints;
     int            step;    // Flag to know in which step the thread is
 
-    Port      outPortQTorso;
-    Port      outPortVNeck;
+    BufferedPort<Bottle>   outPortQTorso;
+    BufferedPort<Property> outPortVNeck;
     RpcClient gazeStabRPC;
 
     // Kinematics
