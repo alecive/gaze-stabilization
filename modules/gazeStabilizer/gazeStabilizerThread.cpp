@@ -66,7 +66,7 @@ bool gazeStabilizerThread::threadInit()
 {
     inTorsoPort.open(("/"+name+"/torsoController:i").c_str());
     inIMUPort  .open(("/"+name+"/inertial:i").c_str());
-    inWBPort   .open(("/"+name+"/wholeBody:i").c_str());
+    inFFPort   .open(("/"+name+"/wholeBody:i").c_str());
 
     // Network::connect("/torsoController/torsoVels:o",("/"+name+"/torsoController:i").c_str());
     Network::connect("/torsoController/neckVel:o",("/"+name+"/wholeBody:i").c_str());
@@ -275,52 +275,35 @@ bool gazeStabilizerThread::handleFFPort()
     {
         // Reset the feedforward signal
         dq_NE_FF.resize(6,0.0);
-        Ts_tx.clear();
         FF_Ts = 0.0;
 
         // if there is something on the port, change state to init
-        if (inWBBottle = inWBPort.read(false))
+        if (inFFProperty = inFFPort.read(false))
         {
-            FFstate = FF_STATE_INIT;
+            FFstate = FF_STATE_RX;
             timeNow = yarp::os::Time::now();
-        }
-    }
-    else if (FFstate == FF_STATE_INIT)
-    {
-        dq_NE_FF.resize(6,0.0);
-
-        if (inWBBottle = inWBPort.read(false))
-        {
-            double tNow = yarp::os::Time::now();
-            Ts_tx.push_back(tNow-timeNow);
-            timeNow=tNow;
-            yDebug(" Ts_tx size: %li\n",Ts_tx.size());
-
-            if (Ts_tx.size()>1)
-            {
-                // Get the average tx period of the FF port
-                for (int i = 0; i < Ts_tx.size(); i++)
-                {
-                    FF_Ts += Ts_tx[i];
-                    printMessage(4,"Ts_tx[i] %g\n", Ts_tx[i]);
-                }
-                FF_Ts /= Ts_tx.size();
-                yInfo(" [FFPort][INIT] Initialization finished. Ready to use it. Ts_tx: %g",FF_Ts);
-
-                FFstate = FF_STATE_RX;
-            }
         }
     }
     else if (FFstate == FF_STATE_RX)
     {
-        if (inWBBottle = inWBPort.read(false))
+        if (inFFProperty = inFFPort.read(false))
         {
-            FF_init_cnt = 0;
-            Vector dx_FP_FF(6,0.0);
-            compute_dxFP_wholeBodyMode(dx_FP_FF);
-            yDebug(" dx_FP_FF: %s FF_Ts: %g",dx_FP_FF.toString(3,3).c_str(),FF_Ts);
-            dq_NE_FF.setSubvector(0,computeNeckVels(dx_FP_FF));
-            dq_NE_FF.setSubvector(3,computeEyesVels(dx_FP_FF));
+            if (inFFProperty->check("Ts"))
+            {
+                yDebug(" [FFPort] Reading %s",inFFProperty->toString().c_str());
+                FF_init_cnt = 0;
+                Vector dx_FP_FF(6,0.0);
+
+                FF_Ts = inFFProperty->find("Ts").asDouble();
+                compute_dxFP_wholeBodyMode(dx_FP_FF);
+                yDebug(" dx_FP_FF: %s FF_Ts: %g",dx_FP_FF.toString(3,3).c_str(),FF_Ts);
+                dq_NE_FF.setSubvector(0,computeNeckVels(dx_FP_FF));
+                dq_NE_FF.setSubvector(3,computeEyesVels(dx_FP_FF));
+            }
+            else
+            {
+                FF_init_cnt++;
+            }
         }
         else if (FF_init_cnt > int(FF_NOTX_THRES * FF_Ts / ((*this).getRate()/1000.0)))
         {
@@ -405,17 +388,22 @@ bool gazeStabilizerThread::compute_dxFP_wholeBodyMode(Vector &_dx_FP)
     Vector v(3,0.0);
     Vector w(3,0.0);
 
-    // Translational part
-    v[0] = inWBBottle -> get(0).asDouble();
-    v[1] = inWBBottle -> get(1).asDouble();
-    v[2] = inWBBottle -> get(2).asDouble();
+    if (inFFProperty->check("neck_velocity"))
+    {
+        Bottle *b = inFFProperty->find("neck_velocity").asList();
 
-    // Rotational part
-    w[0] = inWBBottle -> get(3).asDouble();
-    w[1] = inWBBottle -> get(4).asDouble();
-    w[2] = inWBBottle -> get(5).asDouble();
+        // Translational part
+        v[0] = b->get(0).asDouble();
+        v[1] = b->get(1).asDouble();
+        v[2] = b->get(2).asDouble();
 
-    yDebug(" vNeck %s  %s",v.toString(3,3).c_str(),w.toString(3,3).c_str());
+        // Rotational part
+        w[0] = b->get(3).asDouble();
+        w[1] = b->get(4).asDouble();
+        w[2] = b->get(5).asDouble();
+
+        yDebug(" vNeck %s  %s",v.toString(3,3).c_str(),w.toString(3,3).c_str());
+    }
 
     // 5  - Compute the lever arm between the neck base and the fixation point
     // Vector xFP_E = root2Eyes(xFP_R);
@@ -946,7 +934,7 @@ void gazeStabilizerThread::threadRelease()
     yDebug(" Closing ports...");
         closePort(inTorsoPort);
         closePort(inIMUPort);
-        closePort(inWBPort);
+        closePort(inFFPort);
 
     yDebug(" Closing controllers..");
         ddH->close();

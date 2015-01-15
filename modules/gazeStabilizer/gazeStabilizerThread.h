@@ -109,14 +109,12 @@ protected:
     Vector dx_FP;           // 6D speed of the fixation point (src_mode dependent)
 
     // Input from the torsoController
-    BufferedPort<Bottle>  inTorsoPort;   // port for reading from the torsoController
-    Bottle               *inTorsoBottle; // bottle used for the port
-
-    BufferedPort<Bottle>  inIMUPort;     // port for reading from the inertial sensor
-    Bottle               *inIMUBottle;   // bottle used for the port
-
-    BufferedPort<Bottle>  inWBPort;      // port for reading neck velocities from the whole body
-    Bottle               *inWBBottle;    // bottle used for the port
+    BufferedPort<Bottle>    inTorsoPort;   // port for reading from the torsoController
+    Bottle                 *inTorsoBottle; // bottle used for the port
+    BufferedPort<Bottle>    inIMUPort;     // port for reading from the inertial sensor
+    Bottle                 *inIMUBottle;   // bottle used for the port
+    BufferedPort<Property>  inFFPort;      // port for reading neck velocities from the whole body
+    Property               *inFFProperty;  // property used for the port
 
     int FFstate;
     int FF_init_cnt;
