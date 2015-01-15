@@ -345,7 +345,7 @@ void Controller::doSaccade(const Vector &ang, const Vector &vel)
     _ang[0]=CTRL_RAD2DEG*std::min(std::max(lim(eyesJoints[0],0),ang[0]),lim(eyesJoints[0],1));
     _ang[1]=CTRL_RAD2DEG*std::min(std::max(lim(eyesJoints[1],0),ang[1]),lim(eyesJoints[1],1));
     _ang[2]=CTRL_RAD2DEG*std::min(std::max(lim(eyesJoints[2],0),ang[2]),lim(eyesJoints[2],1));
-    posHead->positionMove(eyesJoints.size(),eyesJoints.getFirst(),_ang.data());
+    // posHead->positionMove(eyesJoints.size(),eyesJoints.getFirst(),_ang.data());
 
     saccadeStartTime=Time::now();
     commData->get_isSaccadeUnderway()=true;
