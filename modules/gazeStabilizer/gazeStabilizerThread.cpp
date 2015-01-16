@@ -729,7 +729,7 @@ bool gazeStabilizerThread::areJointsHealthyAndSet(VectorOf<int> &jointsToSet,con
     VectorOf<int> modes(encsH->size());
     imodH->getControlModes(modes.getFirst());
 
-    yError("Modes: HWFAULT %d IDLE %d MIXED %d POS %d VEL %d",VOCAB_CM_HW_FAULT,VOCAB_CM_IDLE,VOCAB_CM_MIXED,VOCAB_CM_POSITION,VOCAB_CM_VELOCITY);
+    yTrace("Modes: HWFAULT %d IDLE %d MIXED %d POS %d VEL %d",VOCAB_CM_HW_FAULT,VOCAB_CM_IDLE,VOCAB_CM_MIXED,VOCAB_CM_POSITION,VOCAB_CM_VELOCITY);
     string modesstring="";
     for (size_t i=0; i<modes.size(); i++)
     {
@@ -748,20 +748,13 @@ bool gazeStabilizerThread::areJointsHealthyAndSet(VectorOf<int> &jointsToSet,con
                 jointsToSet.push_back(i);
         }
     }
-    yError("%s",modesstring.c_str());
+    yTrace("%s",modesstring.c_str());
 
     return true;
 }
 
 bool gazeStabilizerThread::setHeadCtrlModes(const VectorOf<int> &jointsToSet,const string &_s)
 {
-
-    yError("jointsToSet size %d",jointsToSet.size());
-    for (int i = 0; i < jointsToSet.size(); i++)
-    {
-        yError("%d ",jointsToSet[i]);
-    }
-
     if (_s!="position" && _s!="velocity")
     {
         return false;
@@ -997,41 +990,12 @@ void gazeStabilizerThread::threadRelease()
         delete ddT;
         ddT = NULL;
 
-        if (encsH)
-        {
-            delete encsH;
-            encsH = NULL;
-        }
-
-        if (encsT)
-        {
-            delete encsT;
-            encsT = NULL;
-        }
-
-        if (eyeR)
-        {
-            delete eyeR;
-            eyeR = NULL;
-        }
-
-        if (eyeL)
-        {
-            delete eyeL;
-            eyeL = NULL;
-        }
-
-        if (neck)
-        {
-            delete neck;
-            neck = NULL;
-        }
-
-        if (IMU)
-        {
-            delete IMU;
-            IMU = NULL;
-        }
+        if (encsH) { delete encsH; encsH = NULL; }
+        if (encsT) { delete encsT; encsT = NULL; }
+        if (eyeR)  { delete eyeR;  eyeR = NULL;  }
+        if (eyeL)  { delete eyeL;  eyeL = NULL;  }
+        if (neck)  { delete neck;  neck = NULL;  }
+        if (IMU)   { delete IMU;   IMU = NULL;   }
 
         delete integrator; integrator = NULL;
 }
