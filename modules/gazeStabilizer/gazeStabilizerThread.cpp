@@ -125,7 +125,8 @@ bool gazeStabilizerThread::threadInit()
     ivelH2 -> setRefAccelerations(headAcc.data());
 
     Vector headVel(jntsH,10.0);
-    iposH->setRefSpeeds(headVel.data());
+    iposH -> setRefSpeeds(headVel.data());
+    iposH -> setRefAccelerations(headAcc.data());
 
     Property OptT;
     OptT.put("robot",  robot.c_str());

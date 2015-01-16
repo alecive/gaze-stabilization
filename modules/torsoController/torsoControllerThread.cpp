@@ -159,6 +159,13 @@ bool torsoControllerThread::threadInit()
     iencsT -> getAxes(&jntsT);
     encsT = new Vector(jntsT,0.0);
 
+    Vector headAcc(jntsT,1e9);
+    ivelT -> setRefAccelerations(headAcc.data());
+
+    Vector headVel(jntsT,10.0);
+    iposT -> setRefSpeeds(headVel.data());
+    iposT -> setRefAccelerations(headAcc.data());
+
     Property OptH;
     OptH.put("robot",  robot.c_str());
     OptH.put("part",   "head");
