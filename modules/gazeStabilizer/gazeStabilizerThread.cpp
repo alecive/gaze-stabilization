@@ -10,6 +10,14 @@
 #define FF_STATE_RX   2
 #define FF_NOTX_THRES 4
 
+
+string int_to_string( const int a )
+{
+    std::stringstream ss;
+    ss << a;
+    return ss.str();
+}
+
 gazeStabilizerThread::gazeStabilizerThread(int _rate, string &_name, string &_robot, int _v, string &_if_mode,
                                            string &_src_mode, string &_ctrl_mode, bool _calib_IMU, double _int_gain) :
                                            RateThread(_rate), name(_name), robot(_robot), verbosity(_v), if_mode(_if_mode),
@@ -617,20 +625,22 @@ bool gazeStabilizerThread::moveEyes(const Vector &_dq_E)
     }
     else
     {
-        setHeadCtrlModes(jointsToSet,"velocity");
+        bool headCtrlModes = setHeadCtrlModes(jointsToSet,"velocity");
+        yError("headCtrlModes %d",headCtrlModes);
     }
 
-    printMessage(3,"Moving eyes to: %s\n",_dq_E.toString(3,3).c_str());
+    printMessage(0,"Moving eyes to: %s\n",_dq_E.toString(3,3).c_str());
     std::vector<int> Ejoints;  // indexes of the joints to control
     Ejoints.push_back(3);
     Ejoints.push_back(4);
     Ejoints.push_back(5);
-    printMessage(4,"Head joints to be controlled: %i %i %i\n",Ejoints[0],Ejoints[1],Ejoints[2]);
+    printMessage(0,"Head joints to be controlled: %i %i %i\n",Ejoints[0],Ejoints[1],Ejoints[2]);
 
     if (if_mode == "vel2")
     {
         int nJnts = 3;
-        ivelH2 -> velocityMove(nJnts,Ejoints.data(),_dq_E.data());
+        bool result = ivelH2 -> velocityMove(nJnts,Ejoints.data(),_dq_E.data());
+        yDebug(" Result: %d",result);
     }
     else if (if_mode == "vel1")
     {
@@ -719,31 +729,43 @@ bool gazeStabilizerThread::areJointsHealthyAndSet(VectorOf<int> &jointsToSet,con
     VectorOf<int> modes(encsH->size());
     imodH->getControlModes(modes.getFirst());
 
+    yError("Modes: HWFAULT %d IDLE %d MIXED %d POS %d VEL %d",VOCAB_CM_HW_FAULT,VOCAB_CM_IDLE,VOCAB_CM_MIXED,VOCAB_CM_POSITION,VOCAB_CM_VELOCITY);
+    string modesstring="";
     for (size_t i=0; i<modes.size(); i++)
     {
+        modesstring= modesstring + " " + int_to_string(modes[i]);
         if ((modes[i]==VOCAB_CM_HW_FAULT) || (modes[i]==VOCAB_CM_IDLE))
             return false;
 
         if (_s=="velocity")
         {
-            if (modes[i]!=VOCAB_CM_MIXED || modes[i]!=VOCAB_CM_VELOCITY)
+            if (modes[i]!=VOCAB_CM_MIXED && modes[i]!=VOCAB_CM_VELOCITY)
                 jointsToSet.push_back(i);
         }
         else if (_s=="position")
         {
-            if (modes[i]!=VOCAB_CM_MIXED || modes[i]!=VOCAB_CM_POSITION)
+            if (modes[i]!=VOCAB_CM_MIXED && modes[i]!=VOCAB_CM_POSITION)
                 jointsToSet.push_back(i);
         }
-
     }
+    yError("%s",modesstring.c_str());
 
     return true;
 }
 
 bool gazeStabilizerThread::setHeadCtrlModes(const VectorOf<int> &jointsToSet,const string &_s)
 {
-    if (_s!="position" || _s!="velocity")
+
+    yError("jointsToSet size %d",jointsToSet.size());
+    for (int i = 0; i < jointsToSet.size(); i++)
+    {
+        yError("%d ",jointsToSet[i]);
+    }
+
+    if (_s!="position" && _s!="velocity")
+    {
         return false;
+    }
 
     if (jointsToSet.size()==0)
         return true;
@@ -761,9 +783,15 @@ bool gazeStabilizerThread::setHeadCtrlModes(const VectorOf<int> &jointsToSet,con
         }
     }
 
-    imodH->setControlModes(jointsToSet.size(),
-                           jointsToSet.getFirst(),
-                           modes.getFirst());
+    bool result = imodH->setControlModes(jointsToSet.size(),
+                                         jointsToSet.getFirst(),
+                                         modes.getFirst());
+    yError(0,"[setHeadCtrlModes] setting joints ");
+    for (int i = 0; i < jointsToSet.size(); i++)
+    {
+        yError("%d ",jointsToSet[i]);
+    }
+    yError(" to %s mode.\t Result %d",_s.c_str(), result);
 
     return true;
 }
