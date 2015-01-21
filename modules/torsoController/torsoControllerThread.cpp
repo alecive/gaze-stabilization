@@ -340,9 +340,9 @@ void torsoControllerThread::sendNeckVel()
     dq_T[2] = wayPoints[currentWaypoint].vels[0];
 
     neckVel = J_T * CTRL_DEG2RAD * dq_T;
-    // printMessage(1,"vNeck:\t%s\n", neckVel.toString(3,3).c_str());
-    yDebug(" vNeck:\t%s  %s\n", neckVel.subVector(0,2).toString(3,3).c_str(),
-                 (CTRL_RAD2DEG*neckVel.subVector(3,5)).toString(3,3).c_str());
+
+    printMessage(1," vNeck:\t%s  %s\n", neckVel.subVector(0,2).toString(3,3).c_str(),
+                          (CTRL_RAD2DEG*neckVel.subVector(3,5)).toString(3,3).c_str());
 
     Bottle neckvelocity;
     neckvelocity.addList().read(neckVel);
@@ -374,7 +374,7 @@ void torsoControllerThread::updateNeckChain(iKinChain &_neck)
 
 bool torsoControllerThread::setTorsoCtrlModes(const string _s)
 {
-    if (_s!="position" || _s!="velocity")
+    if (_s!="position" && _s!="velocity")
         return false;
 
     VectorOf<int> jointsToSet;
@@ -396,9 +396,11 @@ bool torsoControllerThread::setTorsoCtrlModes(const string _s)
         modes.push_back(VOCAB_CM_VELOCITY);
     }
 
-    imodT -> setControlModes(jointsToSet.size(),
-                             jointsToSet.getFirst(),
-                             modes.getFirst());
+    bool res = imodT -> setControlModes(jointsToSet.size(),
+                                        jointsToSet.getFirst(),
+                                        modes.getFirst());
+
+    yTrace("I have put the torso in %s mode: result %d\n",_s.c_str(),res);
 
     return true;
 }

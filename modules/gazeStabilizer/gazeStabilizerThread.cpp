@@ -641,7 +641,7 @@ bool gazeStabilizerThread::moveHeadEyes(const Vector &_dq_NE)
 {
     handleJointsMode();
 
-    printMessage(3,"Moving eyes to: %s\n",_dq_NE.toString(3,3).c_str());
+    printMessage(0,"Moving eyes to: %s\n",_dq_NE.toString(3,3).c_str());
     std::vector<int> Ejoints;  // indexes of the joints to control
     Ejoints.push_back(0);
     Ejoints.push_back(1);
@@ -649,13 +649,13 @@ bool gazeStabilizerThread::moveHeadEyes(const Vector &_dq_NE)
     Ejoints.push_back(3);
     Ejoints.push_back(4);
     Ejoints.push_back(5);
-    printMessage(4,"Head joints to be controlled: %i %i %i\n",
+    printMessage(0,"Head joints to be controlled: %i %i %i %i %i %i\n",
                     Ejoints[0],Ejoints[1],Ejoints[2],
                     Ejoints[3],Ejoints[4],Ejoints[5]);
 
     if (if_mode == "vel2")
     {
-        int nJnts = 3;
+        int nJnts = 6;
         bool result = ivelH2 -> velocityMove(nJnts,Ejoints.data(),_dq_NE.data());
         yDebug(" Result: %d",result);
     }
