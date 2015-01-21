@@ -576,16 +576,7 @@ Vector gazeStabilizerThread::compute_dxFP_kinematics(Vector &_dq)
 
 bool gazeStabilizerThread::moveHead(const Vector &_dq_N)
 {
-    VectorOf<int> jointsToSet;
-    if (!areJointsHealthyAndSet(jointsToSet,"velocity"))
-    {
-        stopStabilization();
-        return false;
-    }
-    else
-    {
-        setHeadCtrlModes(jointsToSet,"velocity");
-    }
+    handleJointsMode();
 
     // Move the head
     printMessage(3,"Moving neck to: %s\n",_dq_N.toString(3,3).c_str());
@@ -617,24 +608,14 @@ bool gazeStabilizerThread::moveHead(const Vector &_dq_N)
 
 bool gazeStabilizerThread::moveEyes(const Vector &_dq_E)
 {
-    VectorOf<int> jointsToSet;
-    if (!areJointsHealthyAndSet(jointsToSet,"velocity"))
-    {
-        stopStabilization();
-        return false;
-    }
-    else
-    {
-        bool headCtrlModes = setHeadCtrlModes(jointsToSet,"velocity");
-        yError("headCtrlModes %d",headCtrlModes);
-    }
+    handleJointsMode();
 
-    printMessage(0,"Moving eyes to: %s\n",_dq_E.toString(3,3).c_str());
+    printMessage(3,"Moving eyes to: %s\n",_dq_E.toString(3,3).c_str());
     std::vector<int> Ejoints;  // indexes of the joints to control
     Ejoints.push_back(3);
     Ejoints.push_back(4);
     Ejoints.push_back(5);
-    printMessage(0,"Head joints to be controlled: %i %i %i\n",Ejoints[0],Ejoints[1],Ejoints[2]);
+    printMessage(4,"Head joints to be controlled: %i %i %i\n",Ejoints[0],Ejoints[1],Ejoints[2]);
 
     if (if_mode == "vel2")
     {
@@ -658,11 +639,55 @@ bool gazeStabilizerThread::moveEyes(const Vector &_dq_E)
 
 bool gazeStabilizerThread::moveHeadEyes(const Vector &_dq_NE)
 {
-    bool ret=1;
-    ret = ret && moveHead(_dq_NE.subVector(0,2));
-    ret = ret && moveEyes(_dq_NE.subVector(3,5));
+    handleJointsMode();
 
-    return ret;
+    printMessage(3,"Moving eyes to: %s\n",_dq_NE.toString(3,3).c_str());
+    std::vector<int> Ejoints;  // indexes of the joints to control
+    Ejoints.push_back(0);
+    Ejoints.push_back(1);
+    Ejoints.push_back(2);
+    Ejoints.push_back(3);
+    Ejoints.push_back(4);
+    Ejoints.push_back(5);
+    printMessage(4,"Head joints to be controlled: %i %i %i\n",
+                    Ejoints[0],Ejoints[1],Ejoints[2],
+                    Ejoints[3],Ejoints[4],Ejoints[5]);
+
+    if (if_mode == "vel2")
+    {
+        int nJnts = 3;
+        bool result = ivelH2 -> velocityMove(nJnts,Ejoints.data(),_dq_NE.data());
+        yDebug(" Result: %d",result);
+    }
+    else if (if_mode == "vel1")
+    {
+        ivelH1 -> velocityMove(Ejoints[0],_dq_NE(0));
+        ivelH1 -> velocityMove(Ejoints[1],_dq_NE(1));
+        ivelH1 -> velocityMove(Ejoints[2],_dq_NE(2));
+        ivelH1 -> velocityMove(Ejoints[3],_dq_NE(3));
+        ivelH1 -> velocityMove(Ejoints[4],_dq_NE(4));
+        ivelH1 -> velocityMove(Ejoints[5],_dq_NE(5));
+    }
+    else
+    {
+        yWarning("if_mode is neither vel1 or vel2. No velocity will be sent.");
+        return false;
+    }
+    return true;
+}
+
+bool gazeStabilizerThread::handleJointsMode()
+{
+    VectorOf<int> jointsToSet;
+    if (!areJointsHealthyAndSet(jointsToSet,"velocity"))
+    {
+        stopStabilization();
+        return false;
+    }
+    else
+    {
+        setHeadCtrlModes(jointsToSet,"velocity");
+    }
 }
 
 void gazeStabilizerThread::updateEyeChain(iKinChain &_eye, const string &_eyeType)
@@ -779,12 +804,6 @@ bool gazeStabilizerThread::setHeadCtrlModes(const VectorOf<int> &jointsToSet,con
     bool result = imodH->setControlModes(jointsToSet.size(),
                                          jointsToSet.getFirst(),
                                          modes.getFirst());
-    yError(0,"[setHeadCtrlModes] setting joints ");
-    for (int i = 0; i < jointsToSet.size(); i++)
-    {
-        yError("%d ",jointsToSet[i]);
-    }
-    yError(" to %s mode.\t Result %d",_s.c_str(), result);
 
     return true;
 }

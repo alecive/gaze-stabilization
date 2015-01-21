@@ -195,6 +195,7 @@ protected:
     bool moveHead(const Vector &_dq_N);
     bool moveEyes(const Vector &_dq_E);
     bool moveHeadEyes(const Vector &_dq_NE);
+    bool handleJointsMode();
 
     /**
      * 
