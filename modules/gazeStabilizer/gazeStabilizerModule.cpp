@@ -283,7 +283,7 @@ class gazeStabilizer: public RFModule
             string src_mode  =       "inertial"; // it can be either torso or inertial or wholeBody
             string ctrl_mode =       "headEyes"; // it can be either head, eyes or headEyes
             bool   calib_IMU =             true;
-            double int_gain  =             10.0; // the gain sent to the integrator
+            double int_gain  =              6.5; // the gain sent to the integrator
 
             //******************* NAME ******************
                 if (rf.check("name"))
