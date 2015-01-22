@@ -9,6 +9,8 @@
 #define FF_STATE_INIT 1
 #define FF_STATE_RX   2
 #define FF_NOTX_THRES 4
+#define GYRO_BIAS_STABILITY_IMU_CALIB   1.1     // [deg/s]
+#define GYRO_BIAS_STABILITY             4.0     // [deg/s]
 
 
 string int_to_string( const int a )
@@ -485,27 +487,41 @@ bool gazeStabilizerThread::compute_dxFP_inertialMode(Vector &_dx_FP)
         gyr[2] = inIMUBottle -> get(8).asDouble()-IMUCalibratedAvg[2];
         yDebug(" Gyro: \t%s",gyr.toString(3,3).c_str());
 
-        // 5  - Compute the lever arm between the fixation point and the IMU
-        Matrix H = IMU -> getH();
-        H(0,3)   = xFP_R[0]-H(0,3);
-        H(1,3)   = xFP_R[1]-H(1,3);
-        H(2,3)   = xFP_R[2]-H(2,3);
+        double gyrobiasstability=calib_IMU?GYRO_BIAS_STABILITY_IMU_CALIB:GYRO_BIAS_STABILITY;
+        if (robot=="icubSim")
+        {
+            gyrobiasstability/=3;
+        }
 
-        // 6A - Compute the positional component of the speed of the fixation point
-        //      thanks to the rotational component measure obtained from the IMU
-        Vector dx_FP_pos(3,0.0);
-        dx_FP_pos=CTRL_DEG2RAD*(gyr[0]*cross(H,0,H,3)+gyr[1]*cross(H,1,H,3)+gyr[2]*cross(H,2,H,3));
-        _dx_FP.setSubvector(0, dx_FP_pos);
+        if ((fabs(gyr[0])<gyrobiasstability) && (fabs(gyr[1])<gyrobiasstability) &&
+            (fabs(gyr[2])<gyrobiasstability))
+        {
+            return false;
+        }
+        else
+        {
+            // 5  - Compute the lever arm between the fixation point and the IMU
+            Matrix H = IMU -> getH();
+            H(0,3)   = xFP_R[0]-H(0,3);
+            H(1,3)   = xFP_R[1]-H(1,3);
+            H(2,3)   = xFP_R[2]-H(2,3);
 
-        // 6B - Project IMU measure on the the rotational component
-        //      of the speed of the fixation point
-        H(0,3) = 0;        H(1,3) = 0;        H(2,3) = 0;
+            // 6A - Compute the positional component of the speed of the fixation point
+            //      thanks to the rotational component measure obtained from the IMU
+            Vector dx_FP_pos(3,0.0);
+            dx_FP_pos=CTRL_DEG2RAD*(gyr[0]*cross(H,0,H,3)+gyr[1]*cross(H,1,H,3)+gyr[2]*cross(H,2,H,3));
+            _dx_FP.setSubvector(0, dx_FP_pos);
 
-        gyr.push_back(1.0);
-        Vector dx_FP_rot = CTRL_DEG2RAD * H * gyr;
-        dx_FP_rot.pop_back();
+            // 6B - Project IMU measure on the the rotational component
+            //      of the speed of the fixation point
+            H(0,3) = 0;        H(1,3) = 0;        H(2,3) = 0;
 
-        _dx_FP.setSubvector(3, dx_FP_rot);
+            gyr.push_back(1.0);
+            Vector dx_FP_rot = CTRL_DEG2RAD * H * gyr;
+            dx_FP_rot.pop_back();
+
+            _dx_FP.setSubvector(3, dx_FP_rot);
+        }
     }
     else
     {
