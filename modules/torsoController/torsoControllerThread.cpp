@@ -260,7 +260,7 @@ bool torsoControllerThread::processWayPoint()
     sendNeckVel();
     if (wayPoints[currentWaypoint].name == "START     ")
     {
-        yDebug(" Putting torso in home position..");
+        yTrace(" Putting torso in home position..");
         goHome();
 
         if (yarp::os::Time::now() - timeNow > CTRL_PERIOD)
@@ -270,7 +270,7 @@ bool torsoControllerThread::processWayPoint()
     }
     else if (wayPoints[currentWaypoint].name == "END       ")
     {
-        yDebug(" Putting torso in home position..");
+        yTrace(" Putting torso in home position..");
         goHome();
         return false;
     }
