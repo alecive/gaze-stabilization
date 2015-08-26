@@ -159,7 +159,7 @@ protected:
     /**
      * Computes the velocity of the fixation point given the gyro measurements
      * @param  _dx_FP      the velocity of the fixation point without the integral
-     * @return true/false if there has been a successfull read from the IMU (if
+     * @return true/false if there has been a successful read from the IMU (if
      *                    not, the old value is used)
      */
     bool compute_dxFP_inertialMode(Vector &_dx_FP);
