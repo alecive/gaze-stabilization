@@ -1,5 +1,5 @@
 /* 
- * Copyright (C) 2014 iCub Facility - Istituto Italiano di Tecnologia
+ * Copyright (C) 2015 iCub Facility - Istituto Italiano di Tecnologia
  * Author: Alessandro Roncone
  * email:  alessandro.roncone@iit.it
  * Permission is granted to copy, distribute, and/or modify this program
@@ -16,7 +16,7 @@
 */
 
 /**
-\mainpage Gaze Stabilization for the iCub Humanoid Robot
+\mainpage Head Following for the iCub Humanoid Robot
 \defgroup icub_headFollower GazeStabilization
 @ingroup icub_contrib_modules
 
